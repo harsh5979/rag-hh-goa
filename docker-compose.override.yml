@@ -1,0 +1,38 @@
+name: voicerag
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    volumes:
+      - ./backend:/app                    # hot-reload source mount
+      - ./backend/indexes:/app/indexes
+      - ./backend/logs:/app/logs
+      - /app/__pycache__                  # exclude pycache from mount
+    command: >
+      uvicorn app.main:app
+      --host 0.0.0.0
+      --port 8000
+      --reload
+      --reload-dir /app/app
+    environment:
+      - LOG_LEVEL=DEBUG
+      - GENERATION_MODE=auto
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend.dev  # lightweight dev image
+    volumes:
+      - ./frontend:/app                   # hot-reload source mount
+      - /app/node_modules                 # preserve container node_modules
+      - /app/.next
+    command: npm run dev
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - NODE_ENV=development
+
+  nginx:
+    profiles:
+      - prod                              # skip nginx in dev

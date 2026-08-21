@@ -1,0 +1,50 @@
+# ═══════════════════════════════════════════════════════════════════
+#  .dockerignore — repo root context
+#  IMPORTANT: Do NOT ignore frontend/ or backend/ source dirs.
+#  These are needed by COPY frontend/ and COPY backend/ in Dockerfiles.
+# ═══════════════════════════════════════════════════════════════════
+
+# ─── Node / Frontend (build artifacts only) ───────────────────────
+frontend/node_modules/
+frontend/.next/
+frontend/.turbo/
+frontend/out/
+frontend/.env.local
+
+# ─── Python / Backend (cache only) ───────────────────────────────
+backend/__pycache__/
+backend/**/__pycache__/
+backend/*.py[cod]
+backend/.venv/
+backend/venv/
+backend/.env.local
+backend/.pytest_cache/
+backend/.mypy_cache/
+backend/.ruff_cache/
+backend/htmlcov/
+backend/.coverage
+
+# ─── Large data files (built separately via setup profile) ────────
+backend/data/
+# Note: backend/indexes/ is intentionally NOT ignored —
+#       pre-built FAISS index is shipped in image.
+#       If indexes are >500MB, comment next line and use volumes:
+# backend/indexes/
+
+# ─── Git / CI ─────────────────────────────────────────────────────
+.git/
+.gitignore
+.github/
+
+# ─── IDE / OS ─────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# ─── Docs / misc ─────────────────────────────────────────────────
+*.md
+LICENSE
+docs/
+*.pdf

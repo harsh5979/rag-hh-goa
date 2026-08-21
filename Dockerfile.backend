@@ -1,0 +1,95 @@
+# ═══════════════════════════════════════════════════════════════════
+#  Dockerfile.backend  —  Multi-stage production build
+#  BUILD CONTEXT: repo root (.)
+#  All COPY paths are relative to repo root → backend/...
+# ═══════════════════════════════════════════════════════════════════
+
+# ── Stage 1: model-downloader ──────────────────────────────────────
+# Bakes HuggingFace models at BUILD time → container starts warm.
+FROM python:3.11-slim AS model-downloader
+
+WORKDIR /download
+RUN pip install --no-cache-dir --default-timeout=1000 \
+    sentence-transformers==3.0.1 \
+    transformers==4.41.2 \
+    "torch==2.3.1+cpu" \
+    --extra-index-url https://download.pytorch.org/whl/cpu
+
+RUN python -c "\
+from sentence_transformers import SentenceTransformer, CrossEncoder; \
+SentenceTransformer('BAAI/bge-small-en-v1.5'); \
+CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6-v2'); \
+CrossEncoder('cross-encoder/nli-deberta-v3-small'); \
+print('All models downloaded OK')"
+
+
+# ── Stage 2: builder ──────────────────────────────────────────────
+FROM python:3.11-slim AS builder
+
+WORKDIR /build
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc g++ curl libgomp1 \
+ && rm -rf /var/lib/apt/lists/*
+
+# context = repo root, so path is backend/pyproject.toml
+COPY backend/pyproject.toml ./
+
+# ── MAGIC TRICK for Docker layer caching ──
+# Create a dummy app structure so pip install . succeeds and caches dependencies
+# without needing the actual source code (which changes often).
+RUN mkdir -p app && touch app/__init__.py README.md
+
+RUN python -m venv /venv
+ENV PATH="/venv/bin:$PATH"
+RUN pip install --no-cache-dir --upgrade pip wheel
+
+# Install dependencies! This layer will now be CACHED permanently unless pyproject.toml changes
+RUN pip install --no-cache-dir . --extra-index-url https://download.pytorch.org/whl/cpu \
+ && pip uninstall -y rag-hh-goa-backend
+
+
+# ── Stage 3: runtime ──────────────────────────────────────────────
+FROM python:3.11-slim AS runtime
+
+ARG BUILD_DATE=unknown
+ARG GIT_SHA=unknown
+
+LABEL org.opencontainers.image.title="VoiceRAG Backend"
+LABEL org.opencontainers.image.created="${BUILD_DATE}"
+LABEL org.opencontainers.image.revision="${GIT_SHA}"
+LABEL org.opencontainers.image.vendor="HH Goa 2026"
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl libgomp1 \
+ && rm -rf /var/lib/apt/lists/*
+
+RUN groupadd -r appuser && useradd -r -g appuser appuser
+
+WORKDIR /app
+
+# Copy venv
+COPY --from=builder /venv /venv
+ENV PATH="/venv/bin:$PATH"
+
+# Copy pre-downloaded HuggingFace models
+COPY --from=model-downloader /root/.cache/huggingface /home/appuser/.cache/huggingface
+
+# context = repo root, so path is backend/
+COPY backend/ .
+
+RUN mkdir -p logs benchmarks indexes \
+ && chown -R appuser:appuser /app /home/appuser
+
+USER appuser
+EXPOSE 8000
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=90s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+CMD ["uvicorn", "app.main:app", \
+     "--host", "0.0.0.0", \
+     "--port", "8000", \
+     "--workers", "2", \
+     "--proxy-headers", \
+     "--forwarded-allow-ips", "*", \
+     "--access-log"]

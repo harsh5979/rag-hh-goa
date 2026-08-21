@@ -1,0 +1,13 @@
+# Dev-only frontend Dockerfile — hot reload, no build step
+# BUILD CONTEXT: repo root (.)
+FROM node:20-alpine
+
+RUN apk add --no-cache libc6-compat
+WORKDIR /app
+
+# context = repo root
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci --frozen-lockfile
+
+EXPOSE 3000
+CMD ["npm", "run", "dev"]

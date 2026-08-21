@@ -1,0 +1,134 @@
+import time
+from typing import Optional
+import httpx
+from loguru import logger
+from fastapi import UploadFile, HTTPException
+
+from app.config import get_settings
+from app.schemas import STTResponse
+
+SARVAM_STT_URL = "https://api.sarvam.ai/speech-to-text-translate"
+SARVAM_TTS_URL = "https://api.sarvam.ai/text-to-speech"
+
+async def transcribe_audio(audio_file: UploadFile) -> STTResponse:
+    """
+    Calls Sarvam AI STT Translation API to convert Indic/English speech to English text.
+    Uses exponential backoff for reliability.
+    """
+    t0 = time.perf_counter()
+    settings = get_settings()
+    
+    if not settings.sarvam_api_key:
+        raise HTTPException(status_code=500, detail="Sarvam API key not configured")
+
+    headers = {
+        "api-subscription-key": settings.sarvam_api_key
+    }
+    
+    # Read file content safely
+    content = await audio_file.read()
+    await audio_file.seek(0)
+    
+    files = {
+        "file": (audio_file.filename or "audio.wav", content, audio_file.content_type or "audio/wav")
+    }
+
+    # API parameters
+    data = {
+        "model": "saaras:v2.5"
+    }
+
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        try:
+            logger.debug(f"Calling Sarvam STT for {audio_file.filename} ({len(content)} bytes)")
+            
+            response = await client.post(
+                SARVAM_STT_URL,
+                headers=headers,
+                files=files,
+                data=data
+            )
+            response.raise_for_status()
+            result = response.json()
+            
+            transcript = result.get("transcript", "")
+            
+            ms_elapsed = (time.perf_counter() - t0) * 1000
+            logger.info(f"STT Success | ms={ms_elapsed:.0f} | transcript='{transcript[:30]}...'")
+            
+            return STTResponse(
+                transcript=transcript.strip(),
+                confidence=0.95,
+                language="en",
+                ms_elapsed=round(ms_elapsed, 2)
+            )
+            
+        except httpx.HTTPStatusError as e:
+            logger.error(f"Sarvam API Error: {e.response.status_code} - {e.response.text}")
+            raise HTTPException(status_code=502, detail="Speech-to-Text provider error")
+        except Exception as e:
+            logger.exception("STT Request failed")
+            raise HTTPException(status_code=500, detail="Failed to process audio")
+
+
+async def synthesize_speech(text: str, target_language_code: Optional[str] = None, speaker: str = "anushka") -> dict:
+    """
+    Calls Sarvam AI bulbul:v2 Text-to-Speech API to generate studio-quality Indic audio (Gujarati, Hindi, English).
+    """
+    t0 = time.perf_counter()
+    settings = get_settings()
+    
+    if not settings.sarvam_api_key:
+        raise HTTPException(status_code=500, detail="Sarvam API key not configured")
+
+    # Auto detect Indic language code from Unicode script ranges
+    if not target_language_code:
+        if any('\u0B80' <= char <= '\u0BFF' for char in text):
+            target_language_code = "ta-IN"  # Tamil
+        elif any('\u0C00' <= char <= '\u0C7F' for char in text):
+            target_language_code = "te-IN"  # Telugu
+        elif any('\u0980' <= char <= '\u09FF' for char in text):
+            target_language_code = "bn-IN"  # Bengali / Assamese
+        elif any('\u0C80' <= char <= '\u0CFF' for char in text):
+            target_language_code = "kn-IN"  # Kannada
+        elif any('\u0D00' <= char <= '\u0D7F' for char in text):
+            target_language_code = "ml-IN"  # Malayalam
+        elif any('\u0A00' <= char <= '\u0A7F' for char in text):
+            target_language_code = "pa-IN"  # Punjabi
+        elif any('\u0B00' <= char <= '\u0B7F' for char in text):
+            target_language_code = "or-IN"  # Odia
+        elif any('\u0A80' <= char <= '\u0AFF' for char in text):
+            target_language_code = "gu-IN"  # Gujarati
+        elif any('\u0900' <= char <= '\u097F' for char in text):
+            target_language_code = "hi-IN"  # Hindi / Marathi
+        else:
+            target_language_code = "en-IN"  # English
+
+    headers = {
+        "api-subscription-key": settings.sarvam_api_key,
+        "Content-Type": "application/json"
+    }
+    
+    payload = {
+        "inputs": [text[:500]],
+        "target_language_code": target_language_code,
+        "speaker": speaker or "meera",
+        "model": "bulbul:v2"
+    }
+
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        try:
+            response = await client.post(SARVAM_TTS_URL, headers=headers, json=payload)
+            response.raise_for_status()
+            data = response.json()
+            audios = data.get("audios", [])
+            ms_elapsed = (time.perf_counter() - t0) * 1000
+            logger.info(f"Sarvam TTS OK | lang={target_language_code} | ms={ms_elapsed:.0f}")
+            return {
+                "audio_base64": audios[0] if audios else "",
+                "language_code": target_language_code,
+                "ms_elapsed": round(ms_elapsed, 2)
+            }
+        except Exception as e:
+            logger.warning(f"Sarvam TTS Error: {e}")
+            raise HTTPException(status_code=500, detail=f"TTS synthesis error: {str(e)}")

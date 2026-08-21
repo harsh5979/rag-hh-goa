@@ -1,0 +1,73 @@
+# ── Environment & Secrets ───────────────────────────────────
+.env
+.env.local
+.env.*.local
+*.env
+!.env.example
+
+# ── Python & Virtual Envs ───────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+.venv
+venv/
+ENV/
+env/
+
+# ── Next.js & Node.js ───────────────────────────────────────
+node_modules/
+frontend/node_modules/
+.next/
+frontend/.next/
+out/
+frontend/out/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# ── Caches & Hugging Face ───────────────────────────────────
+.cache/
+hf_cache/
+transformers_cache/
+torch_cache/
+*.pt
+*.bin
+*.onnx
+
+# ── Big Datasets & Logs ──────────────────────────────────────
+backend/logs/*.log
+*.log
+backend/data/*.json
+backend/data/*.parquet
+
+# ── System & IDE ────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
