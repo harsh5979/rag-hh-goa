@@ -47,7 +47,7 @@ export const audioApi = {
     const response = await apiClient.post<any>("/chat/tts", {
       text,
       target_language_code,
-      speaker: "meera",
+      speaker: "anushka",
     });
     return response;
   }

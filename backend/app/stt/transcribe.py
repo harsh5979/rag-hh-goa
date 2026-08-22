@@ -112,7 +112,7 @@ async def synthesize_speech(text: str, target_language_code: Optional[str] = Non
     payload = {
         "inputs": [text[:500]],
         "target_language_code": target_language_code,
-        "speaker": speaker or "meera",
+        "speaker": speaker or "anushka",
         "model": "bulbul:v2"
     }
 

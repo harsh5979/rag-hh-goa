@@ -62,7 +62,7 @@ async def chat_tts(request: TTSRequest) -> TTSResponse:
     result = await synthesize_speech(
         text=request.text,
         target_language_code=request.target_language_code,
-        speaker=request.speaker or "meera"
+        speaker=request.speaker or "anushka"
     )
     return TTSResponse(
         audio_base64=result["audio_base64"],
