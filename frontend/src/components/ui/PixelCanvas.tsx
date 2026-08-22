@@ -18,6 +18,14 @@ interface Pixel {
   noisePhase: number;
 }
 
+interface MouseState {
+  x: number;
+  y: number;
+  radius: number;
+  isActive: boolean;
+}
+
+
 export default function PixelCanvas({ className, style }: { className?: string; style?: React.CSSProperties }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -33,10 +41,10 @@ export default function PixelCanvas({ className, style }: { className?: string; 
     let width = 0;
     let height = 0;
 
-    const mouse = {
+    const mouse: MouseState = {
       x: -1000,
       y: -1000,
-      radius: 95,
+      radius: 110,
       isActive: false,
     };
 
@@ -51,15 +59,15 @@ export default function PixelCanvas({ className, style }: { className?: string; 
         if (normY < 0.18) {
           // Upper forest canopy
           const r = Math.floor(45 + noise * 25);
-          const g = Math.floor(105 + noise * 40);
-          const b = Math.floor(55 + noise * 30);
-          return [r, g, b, 0.92];
+          const g = Math.floor(115 + noise * 45);
+          const b = Math.floor(60 + noise * 30);
+          return [r, g, b, 0.95];
         } else {
           // Sunlit lush emerald & bright chartreuse moss
-          const r = Math.floor(75 + noise * 35);
-          const g = Math.floor(155 + noise * 55);
-          const b = Math.floor(65 + noise * 40);
-          return [r, g, b, 0.95];
+          const r = Math.floor(75 + noise * 40);
+          const g = Math.floor(175 + noise * 55);
+          const b = Math.floor(70 + noise * 40);
+          return [r, g, b, 0.98];
         }
       }
       // 2. Middle Section: River Bank & Water Transition (0.45 to 0.62)
@@ -67,16 +75,16 @@ export default function PixelCanvas({ className, style }: { className?: string; 
         const noise = Math.sin(normX * 14 + normY * 12) * 0.5 + 0.5;
         if (normY > 0.50 && normY < 0.58 && normX > 0.15 && normX < 0.85) {
           // River foam & white-blue rapids reflection (matching Sarvam Indus central reflection)
-          const r = Math.floor(180 + noise * 60);
-          const g = Math.floor(215 + noise * 35);
-          const b = Math.floor(235 + noise * 20);
-          return [r, g, b, 0.98];
+          const r = Math.floor(190 + noise * 55);
+          const g = Math.floor(225 + noise * 30);
+          const b = Math.floor(245 + noise * 10);
+          return [r, g, b, 1.0];
         } else {
           // Rich turquoise river water
           const r = Math.floor(35 + noise * 30);
-          const g = Math.floor(140 + noise * 45);
-          const b = Math.floor(175 + noise * 45);
-          return [r, g, b, 0.95];
+          const g = Math.floor(155 + noise * 50);
+          const b = Math.floor(195 + noise * 45);
+          return [r, g, b, 0.98];
         }
       }
       // 3. Bottom Section: Deep River Azure & Reflection Pool (0.62 to 1.0)
@@ -84,16 +92,16 @@ export default function PixelCanvas({ className, style }: { className?: string; 
         const wave = Math.cos(normX * 10 - normY * 14) * 0.5 + 0.5;
         if (normY > 0.82) {
           // Deep teal-black river bed
-          const r = Math.floor(18 + wave * 22);
-          const g = Math.floor(70 + wave * 35);
-          const b = Math.floor(105 + wave * 45);
-          return [r, g, b, 0.92];
+          const r = Math.floor(20 + wave * 25);
+          const g = Math.floor(80 + wave * 40);
+          const b = Math.floor(125 + wave * 50);
+          return [r, g, b, 0.95];
         } else {
           // Flowing cerulean blue river
-          const r = Math.floor(30 + wave * 30);
-          const g = Math.floor(115 + wave * 45);
-          const b = Math.floor(165 + wave * 55);
-          return [r, g, b, 0.96];
+          const r = Math.floor(35 + wave * 35);
+          const g = Math.floor(130 + wave * 50);
+          const b = Math.floor(190 + wave * 55);
+          return [r, g, b, 0.98];
         }
       }
     }
@@ -138,11 +146,20 @@ export default function PixelCanvas({ className, style }: { className?: string; 
 
     initGrid();
 
-    // Mouse handlers on container
+    // Mouse & touch handlers on window so hover works anywhere on screen
     const handleMouseMove = (e: MouseEvent) => {
-      const rect = container.getBoundingClientRect();
+      if (!canvas) return;
+      const rect = canvas.getBoundingClientRect();
       mouse.x = e.clientX - rect.left;
       mouse.y = e.clientY - rect.top;
+      mouse.isActive = true;
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (!canvas || !e.touches[0]) return;
+      const rect = canvas.getBoundingClientRect();
+      mouse.x = e.touches[0].clientX - rect.left;
+      mouse.y = e.touches[0].clientY - rect.top;
       mouse.isActive = true;
     };
 
@@ -152,8 +169,9 @@ export default function PixelCanvas({ className, style }: { className?: string; 
       mouse.isActive = false;
     };
 
-    container.addEventListener("mousemove", handleMouseMove, { passive: true });
-    container.addEventListener("mouseleave", handleMouseLeave);
+    window.addEventListener("mousemove", handleMouseMove, { passive: true });
+    window.addEventListener("touchmove", handleTouchMove, { passive: true });
+    document.addEventListener("mouseleave", handleMouseLeave);
 
     const resizeObserver = new ResizeObserver(() => {
       initGrid();
@@ -161,8 +179,8 @@ export default function PixelCanvas({ className, style }: { className?: string; 
     resizeObserver.observe(container);
 
     let time = 0;
-    const SPRING = 0.12;
-    const DAMPING = 0.82;
+    const SPRING = 0.14;
+    const DAMPING = 0.84;
 
     function animate() {
       if (!ctx) return;
@@ -179,7 +197,7 @@ export default function PixelCanvas({ className, style }: { className?: string; 
         const dist = Math.sqrt(dx * dx + dy * dy);
 
         if (dist < mouse.radius && mouse.isActive) {
-          const force = (1 - dist / mouse.radius) * 16;
+          const force = (1 - dist / mouse.radius) * 18;
           const angle = Math.atan2(dy, dx);
           p.vx -= Math.cos(angle) * force;
           p.vy -= Math.sin(angle) * force;
@@ -189,8 +207,8 @@ export default function PixelCanvas({ className, style }: { className?: string; 
         }
 
         // 2. Ambient subtle breeze motion
-        const breezeX = Math.sin(time + p.noisePhase) * 0.6;
-        const breezeY = Math.cos(time * 0.7 + p.noisePhase) * 0.6;
+        const breezeX = Math.sin(time + p.noisePhase) * 0.7;
+        const breezeY = Math.cos(time * 0.7 + p.noisePhase) * 0.7;
 
         // 3. Spring back
         const homeDx = p.originX + breezeX - p.x;
@@ -216,8 +234,9 @@ export default function PixelCanvas({ className, style }: { className?: string; 
 
     return () => {
       cancelAnimationFrame(animationFrameId);
-      container.removeEventListener("mousemove", handleMouseMove);
-      container.removeEventListener("mouseleave", handleMouseLeave);
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("touchmove", handleTouchMove);
+      document.removeEventListener("mouseleave", handleMouseLeave);
       resizeObserver.disconnect();
     };
   }, []);
