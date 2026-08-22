@@ -47,7 +47,13 @@ const SUGGESTIONS = [
   { lang: "HI", label: "प्रकाश संश्लेषण क्या है?", query: "प्रकाश संश्लेषण क्या है?" },
   { lang: "GU", label: "સૂર્યમંડળમાં કેટલા ગ્રહો છે?", query: "સૂર્યમંડળમાં કેટલા ગ્રહો છે?" },
   { lang: "MR", label: "सूर्यमालेत किती मुख्य ग्रह आहेत?", query: "सूर्यमालेत किती मुख्य ग्रह आहेत?" },
-
+  { lang: "TA", label: "ஒளிச்சேர்க்கை என்றால் என்ன?", query: "ஒளிச்சேர்க்கை என்றால் என்ன?" },
+  { lang: "TE", label: "సూర్య మండలంలో ఎన్ని గ్రహాలు ఉన్నాయి?", query: "సూర్య మండలంలో ఎన్ని గ్రహాలు ఉన్నాయి?" },
+  { lang: "BN", label: "সালোকসংশ্লেষ প্রক্রিয়া কি?", query: "সালোকসংশ্লেষ প্রক্রিয়া কি?" },
+  { lang: "KN", label: "ಸೌರವ್ಯೂಹದಲ್ಲಿ ಎಷ್ಟು ಗ್ರಹಗಳಿವೆ?", query: "ಸೌರವ್ಯೂಹದಲ್ಲಿ ಎಷ್ಟು ಗ್ರಹಗಳಿವೆ?" },
+  { lang: "ML", label: "പ്രകാശസംശ്ലേഷണം എന്നാൽ എന്ത്?", query: "പ്രകാശസംശ്ലേഷണം എന്നാൽ എന്ത്?" },
+  { lang: "PA", label: "ਸੂਰਜੀ ਮੰਡਲ ਵਿੱਚ ਕਿੰਨੇ ਗ੍ਰਹਿ ਹਨ?", query: "ਸੂਰਜੀ ਮੰਡਲ ਵਿੱਚ ਕਿੰਨੇ ਗ੍ਰਹਿ ਹਨ?" },
+  { lang: "OR", label: "ଆଲୋକ ସଂଶ୍ଳେଷଣ କଣ?", query: "ଆଲୋକ ସଂଶ୍ଳେଷଣ କଣ?" },
 ];
 
 /* ━━━━━━━━━━━━━━━━━━━━ SARVAM MANDALA EMBLEM SVG ━━━━━━━━━━━━━━━━━━━━ */
@@ -436,9 +442,7 @@ export default function VoiceRagPage() {
           <span style={{
             fontSize: 11, fontFamily: "monospace", letterSpacing: 1.5,
             textTransform: "uppercase", fontWeight: 800,
-            background: `linear-gradient(90deg, ${T.brand}, ${T.purple}, ${T.emerald})`,
-            WebkitBackgroundClip: "text",
-            WebkitTextFillColor: "transparent",
+            color: T.brandLight,
           }}>
             AlphaCODERS
           </span>
@@ -494,9 +498,7 @@ export default function VoiceRagPage() {
               <span>VoiceRAG Studio</span>
               <span style={{
                 fontSize: 10.5, fontFamily: "monospace",
-                background: `linear-gradient(90deg, ${T.brand}, ${T.purple}, ${T.emerald})`,
-                WebkitBackgroundClip: "text",
-                WebkitTextFillColor: "transparent",
+                color: T.brandLight,
                 fontWeight: 800,
                 letterSpacing: 1.2,
               }}>

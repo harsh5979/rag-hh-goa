@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <rect width="100" height="100" rx="22" fill="#060810"/>
+  <defs>
+    <linearGradient id="glowGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38BDF8"/>
+      <stop offset="50%" stop-color="#8B7FFF"/>
+      <stop offset="100%" stop-color="#10B981"/>
+    </linearGradient>
+  </defs>
+  <g transform="rotate(0 50 50)"><path d="M50 15 C43 26, 43 38, 50 48 C57 38, 57 26, 50 15 Z" stroke="url(#glowGrad)" stroke-width="2.8" fill="rgba(108,99,255,0.2)"/></g>
+  <g transform="rotate(45 50 50)"><path d="M50 15 C43 26, 43 38, 50 48 C57 38, 57 26, 50 15 Z" stroke="url(#glowGrad)" stroke-width="2.8" fill="rgba(108,99,255,0.2)"/></g>
+  <g transform="rotate(90 50 50)"><path d="M50 15 C43 26, 43 38, 50 48 C57 38, 57 26, 50 15 Z" stroke="url(#glowGrad)" stroke-width="2.8" fill="rgba(108,99,255,0.2)"/></g>
+  <g transform="rotate(135 50 50)"><path d="M50 15 C43 26, 43 38, 50 48 C57 38, 57 26, 50 15 Z" stroke="url(#glowGrad)" stroke-width="2.8" fill="rgba(108,99,255,0.2)"/></g>
+  <g transform="rotate(180 50 50)"><path d="M50 15 C43 26, 43 38, 50 48 C57 38, 57 26, 50 15 Z" stroke="url(#glowGrad)" stroke-width="2.8" fill="rgba(108,99,255,0.2)"/></g>
+  <g transform="rotate(225 50 50)"><path d="M50 15 C43 26, 43 38, 50 48 C57 38, 57 26, 50 15 Z" stroke="url(#glowGrad)" stroke-width="2.8" fill="rgba(108,99,255,0.2)"/></g>
+  <g transform="rotate(270 50 50)"><path d="M50 15 C43 26, 43 38, 50 48 C57 38, 57 26, 50 15 Z" stroke="url(#glowGrad)" stroke-width="2.8" fill="rgba(108,99,255,0.2)"/></g>
+  <g transform="rotate(315 50 50)"><path d="M50 15 C43 26, 43 38, 50 48 C57 38, 57 26, 50 15 Z" stroke="url(#glowGrad)" stroke-width="2.8" fill="rgba(108,99,255,0.2)"/></g>
+  <circle cx="50" cy="50" r="11" stroke="#8B7FFF" stroke-width="2.5" fill="#0D1117"/>
+  <circle cx="50" cy="50" r="5" fill="#38BDF8"/>
+</svg>
