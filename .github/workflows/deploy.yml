@@ -86,7 +86,15 @@ jobs:
           script: |
             set -euo pipefail
 
-            # ── 1. Ensure Git & Docker are installed on fresh server ─
+            # ── 1. Sanitize deployment path (strips accidental newlines/spaces)
+            RAW_PATH="${{ secrets.DEPLOY_PATH }}"
+            TARGET_DIR=$(printf '%s' "$RAW_PATH" | tr -d '\r\n' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+            if [ -z "$TARGET_DIR" ]; then
+              TARGET_DIR="/home/${{ secrets.DEPLOY_USER }}/rag-hh-goa"
+            fi
+            echo "Deployment target directory: $TARGET_DIR"
+
+            # ── 2. Ensure Git & Docker are installed on fresh server ─
             if ! command -v git &> /dev/null; then
               echo "Installing git..."
               sudo apt-get update -y && sudo apt-get install -y git
@@ -98,20 +106,20 @@ jobs:
               sudo usermod -aG docker "${{ secrets.DEPLOY_USER }}" || true
             fi
 
-            # ── 2. Clone or update repository ───────────────────────
-            mkdir -p "$(dirname "${{ secrets.DEPLOY_PATH }}")"
-            if [ ! -d "${{ secrets.DEPLOY_PATH }}/.git" ]; then
+            # ── 3. Clone or update repository ───────────────────────
+            mkdir -p "$(dirname "$TARGET_DIR")"
+            if [ ! -d "$TARGET_DIR/.git" ]; then
               echo "Fresh server detected: Cloning repository..."
-              git clone "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" "${{ secrets.DEPLOY_PATH }}"
-              cd "${{ secrets.DEPLOY_PATH }}"
+              git clone "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" "$TARGET_DIR"
+              cd "$TARGET_DIR"
             else
-              cd "${{ secrets.DEPLOY_PATH }}"
+              cd "$TARGET_DIR"
               git fetch origin
               git reset --hard "origin/${{ github.ref_name }}"
             fi
             echo "✓ Code ready: $(git rev-parse --short HEAD)"
 
-            # ── 3. Write secrets to backend/.env ────────────────────
+            # ── 4. Write secrets to backend/.env ────────────────────
             cat > backend/.env << 'ENVEOF'
             SARVAM_API_KEY=${{ secrets.SARVAM_API_KEY }}
             GROQ_API_KEY=${{ secrets.GROQ_API_KEY }}
@@ -138,18 +146,18 @@ jobs:
             ENVEOF
             echo "✓ Environment variables configured"
 
-            # ── 4. Build & Run Docker containers on server ─────────
+            # ── 5. Build & Run Docker containers on server ─────────
             echo "Building and starting Docker services..."
-            docker compose build --parallel
-            docker compose up -d --remove-orphans
+            docker compose -f docker-compose.yml build --parallel
+            docker compose -f docker-compose.yml up -d --remove-orphans
             echo "✓ Containers started"
 
-            # ── 5. Health checks ───────────────────────────────────
+            # ── 6. Health checks ───────────────────────────────────
             sleep 15
-            docker compose ps
+            docker compose -f docker-compose.yml ps
             curl -f http://localhost:8000/health || true
             curl -f http://localhost:3000 || true
 
-            # ── 6. Clean up unused images ──────────────────────────
+            # ── 7. Clean up unused images ──────────────────────────
             docker image prune -f --filter "until=24h"
             echo "✓ Deployment complete!"
