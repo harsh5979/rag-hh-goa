@@ -165,6 +165,7 @@ export default function PixelCanvas({ className, style }: { className?: string; 
     const DAMPING = 0.82;
 
     function animate() {
+      if (!ctx) return;
       time += 0.025;
       ctx.clearRect(0, 0, width, height);
 

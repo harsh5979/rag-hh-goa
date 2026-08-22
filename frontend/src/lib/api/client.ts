@@ -60,6 +60,14 @@ export class ApiClient {
     throw lastError;
   }
 
+  async get<T>(path: string, headers?: Record<string, string>): Promise<T> {
+    return this.request<T>(path, { method: "GET", headers });
+  }
+
+  async post<T>(path: string, body?: unknown, headers?: Record<string, string>): Promise<T> {
+    return this.request<T>(path, { method: "POST", body, headers });
+  }
+
   async postFormData<T>(path: string, formData: FormData): Promise<T> {
     const url = normalizeUrl(this.baseUrl, path);
     const start = performance.now();

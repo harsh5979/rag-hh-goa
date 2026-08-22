@@ -28,6 +28,7 @@ const T = {
   warning: "#F59E0B",
   danger: "#EF4444",
   text: "#F8FAFC",
+  textMain: "#F8FAFC",
   textSec: "#94A3B8",
   textMuted: "#64748B",
   textFaint: "rgba(148,163,184,0.45)",
