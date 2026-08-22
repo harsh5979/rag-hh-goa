@@ -90,7 +90,7 @@ async def synthesize_speech(text: str, target_language_code: Optional[str] = Non
     if not settings.sarvam_api_key:
         raise HTTPException(status_code=500, detail="Sarvam API key not configured")
 
-    # Auto detect Indic language code from Unicode script ranges
+    # Auto detect Indic language code from Unicode script ranges & lexical markers
     if not target_language_code:
         if any('\u0B80' <= char <= '\u0BFF' for char in text):
             target_language_code = "ta-IN"  # Tamil
@@ -105,11 +105,17 @@ async def synthesize_speech(text: str, target_language_code: Optional[str] = Non
         elif any('\u0A00' <= char <= '\u0A7F' for char in text):
             target_language_code = "pa-IN"  # Punjabi
         elif any('\u0B00' <= char <= '\u0B7F' for char in text):
-            target_language_code = "or-IN"  # Odia
+            target_language_code = "od-IN"  # Odia
         elif any('\u0A80' <= char <= '\u0AFF' for char in text):
             target_language_code = "gu-IN"  # Gujarati
         elif any('\u0900' <= char <= '\u097F' for char in text):
-            target_language_code = "hi-IN"  # Hindi / Marathi
+            # Distinguish Marathi from Hindi by common morphological markers
+            marathi_markers = {"आहे", "आहेत", "किती", "झाले", "नाही", "म्हणजे", "करणारे", "सूर्यमालेत"}
+            words_in_text = set(text.split())
+            if words_in_text.intersection(marathi_markers):
+                target_language_code = "mr-IN"  # Marathi
+            else:
+                target_language_code = "hi-IN"  # Hindi
         else:
             target_language_code = "en-IN"  # English
 
