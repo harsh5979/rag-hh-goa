@@ -10,6 +10,7 @@ export function useVoiceQuery() {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isSpeakingAnswer, setIsSpeakingAnswer] = useState<boolean>(false);
+  const [speechProgress, setSpeechProgress] = useState<number>(0);
   const { addResult } = useAnalyticsStore();
 
   const handleStopRef = useRef<() => Promise<void>>(async () => {});
@@ -45,7 +46,7 @@ export function useVoiceQuery() {
   const speakAnswer = useCallback(async (text: string) => {
     if (!text || typeof window === "undefined") return;
 
-    // Stop any currently playing audio
+    // Stop any ongoing audio
     if (activeAudioRef.current) {
       activeAudioRef.current.pause();
     }
@@ -54,9 +55,10 @@ export function useVoiceQuery() {
     }
 
     setIsSpeakingAnswer(true);
+    setSpeechProgress(0);
 
     try {
-      // 1. Primary: Use Sarvam AI bulbul:v2 studio TTS from backend
+      // 1. Primary: Use Sarvam AI bulbul:v2 studio neural voice (speaker: anushka)
       const ttsData = await audioApi.sendTTS(text);
       if (ttsData?.audio_base64) {
         if (!activeAudioRef.current) activeAudioRef.current = new Audio();
@@ -64,8 +66,15 @@ export function useVoiceQuery() {
         const audio = activeAudioRef.current;
         audio.src = `data:audio/wav;base64,${ttsData.audio_base64}`;
         
+        audio.ontimeupdate = () => {
+          if (audio.duration && audio.duration > 0) {
+            setSpeechProgress(audio.currentTime / audio.duration);
+          }
+        };
+
         audio.onended = () => {
           setIsSpeakingAnswer(false);
+          setSpeechProgress(1);
         };
         audio.onerror = (err) => {
           console.warn("Sarvam Audio playback error, falling back to Web Speech:", err);
@@ -76,10 +85,10 @@ export function useVoiceQuery() {
         return;
       }
     } catch (err) {
-      console.warn("Sarvam TTS API failed, using browser Web Speech fallback:", err);
+      console.warn("Sarvam TTS API failed, falling back to browser Web Speech:", err);
     }
 
-    // 2. Fallback: Browser Web Speech API
+    // 2. Fallback only if Sarvam API is completely unavailable
     if ("speechSynthesis" in window) {
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.rate = 1.0;
@@ -87,51 +96,42 @@ export function useVoiceQuery() {
 
       const voices = window.speechSynthesis.getVoices();
 
-      // Auto-detect language block based on unicode ranges
-      if (/[\u0900-\u097F]/.test(text)) { // Hindi / Marathi
+      if (/[\u0900-\u097F]/.test(text)) {
         utterance.lang = "hi-IN";
         const v = voices.find(v => v.lang.startsWith("hi"));
         if (v) utterance.voice = v;
-      } else if (/[\u0A80-\u0AFF]/.test(text)) { // Gujarati
+      } else if (/[\u0A80-\u0AFF]/.test(text)) {
         utterance.lang = "gu-IN";
         const v = voices.find(v => v.lang.startsWith("gu"));
         if (v) utterance.voice = v;
-      } else if (/[\u0B80-\u0BFF]/.test(text)) { // Tamil
+      } else if (/[\u0B80-\u0BFF]/.test(text)) {
         utterance.lang = "ta-IN";
         const v = voices.find(v => v.lang.startsWith("ta"));
         if (v) utterance.voice = v;
-      } else if (/[\u0C00-\u0C7F]/.test(text)) { // Telugu
+      } else if (/[\u0C00-\u0C7F]/.test(text)) {
         utterance.lang = "te-IN";
         const v = voices.find(v => v.lang.startsWith("te"));
         if (v) utterance.voice = v;
-      } else if (/[\u0C80-\u0CFF]/.test(text)) { // Kannada
-        utterance.lang = "kn-IN";
-        const v = voices.find(v => v.lang.startsWith("kn"));
-        if (v) utterance.voice = v;
-      } else if (/[\u0D00-\u0D7F]/.test(text)) { // Malayalam
-        utterance.lang = "ml-IN";
-        const v = voices.find(v => v.lang.startsWith("ml"));
-        if (v) utterance.voice = v;
-      } else if (/[\u0980-\u09FF]/.test(text)) { // Bengali / Assamese
-        utterance.lang = "bn-IN";
-        const v = voices.find(v => v.lang.startsWith("bn"));
-        if (v) utterance.voice = v;
-      } else if (/[\u0B00-\u0B7F]/.test(text)) { // Odia
-        utterance.lang = "or-IN";
-        const v = voices.find(v => v.lang.startsWith("or"));
-        if (v) utterance.voice = v;
-      } else if (/[\u0A00-\u0A7F]/.test(text)) { // Punjabi
-        utterance.lang = "pa-IN";
-        const v = voices.find(v => v.lang.startsWith("pa"));
-        if (v) utterance.voice = v;
-      } else { // Default to English
+      } else {
         utterance.lang = "en-IN";
         const v = voices.find(v => v.lang.startsWith("en-IN") || v.lang.startsWith("en"));
         if (v) utterance.voice = v;
       }
 
-      utterance.onend = () => setIsSpeakingAnswer(false);
-      utterance.onerror = () => setIsSpeakingAnswer(false);
+      utterance.onboundary = (event) => {
+        if (event.charIndex !== undefined && text.length > 0) {
+          setSpeechProgress(event.charIndex / text.length);
+        }
+      };
+
+      utterance.onend = () => {
+        setIsSpeakingAnswer(false);
+        setSpeechProgress(1);
+      };
+      utterance.onerror = () => {
+        setIsSpeakingAnswer(false);
+      };
+
       window.speechSynthesis.speak(utterance);
     } else {
       setIsSpeakingAnswer(false);
@@ -147,6 +147,7 @@ export function useVoiceQuery() {
       window.speechSynthesis.cancel();
     }
     setIsSpeakingAnswer(false);
+    setSpeechProgress(0);
   }, []);
 
   const unlockAudio = useCallback(() => {
@@ -233,6 +234,7 @@ export function useVoiceQuery() {
     isRecognizing,
     isProcessing,
     isSpeakingAnswer,
+    speechProgress,
     startRecording: handleStart,
     stopRecording: handleStop,
     toggle,

@@ -151,15 +151,25 @@ body {
   .canvas-panel {
     flex: none !important;
     width: 100% !important;
-    height: 180px !important;
-    min-height: 180px !important;
-    max-height: 180px !important;
+    height: 190px !important;
+    min-height: 190px !important;
+    max-height: 190px !important;
     padding: 10px 14px !important;
     border-right: none !important;
     border-bottom: 1px solid var(--glass-border) !important;
   }
 
   .canvas-art-desc {
+    display: block !important;
+    position: absolute !important;
+    bottom: 10px !important;
+    left: 12px !important;
+    padding: 6px 10px !important;
+    max-width: 280px !important;
+    border-radius: 6px !important;
+  }
+
+  .canvas-art-desc-sub {
     display: none !important;
   }
 

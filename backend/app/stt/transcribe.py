@@ -71,9 +71,18 @@ async def transcribe_audio(audio_file: UploadFile) -> STTResponse:
             raise HTTPException(status_code=500, detail="Failed to process audio")
 
 
+_TTS_CACHE: dict[str, dict] = {}
+_TTS_CLIENT: Optional[httpx.AsyncClient] = None
+
+def _get_tts_client() -> httpx.AsyncClient:
+    global _TTS_CLIENT
+    if _TTS_CLIENT is None or _TTS_CLIENT.is_closed:
+        _TTS_CLIENT = httpx.AsyncClient(timeout=12.0, limits=httpx.Limits(max_keepalive_connections=20, max_connections=50))
+    return _TTS_CLIENT
+
 async def synthesize_speech(text: str, target_language_code: Optional[str] = None, speaker: str = "anushka") -> dict:
     """
-    Calls Sarvam AI bulbul:v2 Text-to-Speech API to generate studio-quality Indic audio (Gujarati, Hindi, English).
+    Calls Sarvam AI bulbul:v2 Text-to-Speech API with in-memory caching for instant audio delivery.
     """
     t0 = time.perf_counter()
     settings = get_settings()
@@ -104,6 +113,14 @@ async def synthesize_speech(text: str, target_language_code: Optional[str] = Non
         else:
             target_language_code = "en-IN"  # English
 
+    cache_key = f"{target_language_code}:{speaker}:{text.strip()[:300]}"
+    if cache_key in _TTS_CACHE:
+        ms_cached = (time.perf_counter() - t0) * 1000
+        logger.info(f"Sarvam TTS CACHE HIT | lang={target_language_code} | ms={ms_cached:.2f}ms")
+        cached = _TTS_CACHE[cache_key].copy()
+        cached["ms_elapsed"] = round(ms_cached, 2)
+        return cached
+
     headers = {
         "api-subscription-key": settings.sarvam_api_key,
         "Content-Type": "application/json"
@@ -116,19 +133,23 @@ async def synthesize_speech(text: str, target_language_code: Optional[str] = Non
         "model": "bulbul:v2"
     }
 
-    async with httpx.AsyncClient(timeout=15.0) as client:
-        try:
-            response = await client.post(SARVAM_TTS_URL, headers=headers, json=payload)
-            response.raise_for_status()
-            data = response.json()
-            audios = data.get("audios", [])
-            ms_elapsed = (time.perf_counter() - t0) * 1000
-            logger.info(f"Sarvam TTS OK | lang={target_language_code} | ms={ms_elapsed:.0f}")
-            return {
-                "audio_base64": audios[0] if audios else "",
-                "language_code": target_language_code,
-                "ms_elapsed": round(ms_elapsed, 2)
-            }
-        except Exception as e:
-            logger.warning(f"Sarvam TTS Error: {e}")
-            raise HTTPException(status_code=500, detail=f"TTS synthesis error: {str(e)}")
+    client = _get_tts_client()
+    try:
+        response = await client.post(SARVAM_TTS_URL, headers=headers, json=payload)
+        response.raise_for_status()
+        data = response.json()
+        audios = data.get("audios", [])
+        ms_elapsed = (time.perf_counter() - t0) * 1000
+        logger.info(f"Sarvam TTS OK | lang={target_language_code} | ms={ms_elapsed:.0f}")
+        
+        result = {
+            "audio_base64": audios[0] if audios else "",
+            "language_code": target_language_code,
+            "ms_elapsed": round(ms_elapsed, 2)
+        }
+        if audios and len(_TTS_CACHE) < 500:
+            _TTS_CACHE[cache_key] = result
+        return result
+    except Exception as e:
+        logger.warning(f"Sarvam TTS Error: {e}")
+        raise HTTPException(status_code=500, detail=f"TTS synthesis error: {str(e)}")

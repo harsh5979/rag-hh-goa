@@ -46,7 +46,8 @@ const SUGGESTIONS = [
   { lang: "EN", label: "What was the Manhattan Project?", query: "What was the Manhattan Project?" },
   { lang: "HI", label: "प्रकाश संश्लेषण क्या है?", query: "प्रकाश संश्लेषण क्या है?" },
   { lang: "GU", label: "સૂર્યમંડળમાં કેટલા ગ્રહો છે?", query: "સૂર્યમંડળમાં કેટલા ગ્રહો છે?" },
-  { lang: "MR", label: "सूर्यमालेत किती ग्रह आहेत?", query: "सूर्यमालेत किती ग्रह आहेत?" },
+  { lang: "MR", label: "सूर्यमालेत किती मुख्य ग्रह आहेत?", query: "सूर्यमालेत किती मुख्य ग्रह आहेत?" },
+
 ];
 
 /* ━━━━━━━━━━━━━━━━━━━━ SARVAM MANDALA EMBLEM SVG ━━━━━━━━━━━━━━━━━━━━ */
@@ -83,11 +84,82 @@ function SarvamMandala({ size = 44, className }: { size?: number; className?: st
   );
 }
 
+/* ━━━━━━━━━━━━━━━━━━━━ SPOKEN ANSWER TEXT (SMOOTH LUMINOUS HIGHLIGHT) ━━━━━━━━━━━━━━━━━━━━ */
+function SpokenAnswerText({
+  answer,
+  isSpeaking,
+  speechProgress,
+}: {
+  answer: string;
+  isSpeaking: boolean;
+  speechProgress?: number;
+}) {
+  const words = React.useMemo(() => answer.split(/\s+/).filter(Boolean), [answer]);
+
+  // Active word progression during audio playback
+  const activeWordIdx = isSpeaking && typeof speechProgress === "number" && speechProgress > 0
+    ? Math.min(words.length - 1, Math.floor(speechProgress * words.length))
+    : -1;
+
+  if (!isSpeaking || activeWordIdx < 0) {
+    return (
+      <div style={{
+        fontSize: 15,
+        lineHeight: 1.75,
+        color: T.textMain,
+        fontWeight: 400,
+        wordBreak: "break-word",
+      }}>
+        {answer}
+      </div>
+    );
+  }
+
+  return (
+    <div style={{
+      fontSize: 15,
+      lineHeight: 1.75,
+      fontWeight: 400,
+      wordBreak: "break-word",
+    }}>
+      {words.map((word, idx) => {
+        const isCurrent = isSpeaking && idx === activeWordIdx;
+        const isPast = isSpeaking && idx < activeWordIdx;
+        const isFuture = isSpeaking && idx > activeWordIdx;
+
+        return (
+          <span
+            key={idx}
+            style={{
+              display: "inline-block",
+              marginRight: "0.26em",
+              transition: "color 0.14s ease, text-shadow 0.14s ease",
+              color: isCurrent
+                ? "#38BDF8"
+                : isPast
+                  ? "#F8FAFC"
+                  : isFuture
+                    ? "#94A3B8"
+                    : T.textMain,
+              fontWeight: isCurrent ? 600 : 400,
+              textShadow: isCurrent
+                ? "0 0 10px rgba(56, 189, 248, 0.75)"
+                : "none",
+            }}
+          >
+            {word}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
 /* ━━━━━━━━━━━━━━━━━━━━ INLINE RESULT CARD (CLEAN & MINIMAL) ━━━━━━━━━━━━━━━━━━━━ */
 function InlineResultCard({
-  result, query, onClose, onSpeak, isSpeaking, onStopSpeaking,
+  result, query, onClose, onSpeak, isSpeaking, onStopSpeaking, speechProgress,
 }: {
-  result: PipelineResponse; query: string; onClose: () => void; onSpeak?: (text: string) => void; isSpeaking?: boolean; onStopSpeaking?: () => void;
+  result: PipelineResponse; query: string; onClose: () => void; onSpeak?: (text: string) => void; isSpeaking?: boolean; onStopSpeaking?: () => void; speechProgress?: number;
 }) {
   const [showChunks, setShowChunks] = useState(false);
   const totalMs = result.timings?.total_ms ?? result.ms_total ?? 0;
@@ -152,15 +224,8 @@ function InlineResultCard({
         </div>
       )}
 
-      {/* ─── Answer Text ─── */}
-      <div style={{
-        fontSize: 15,
-        lineHeight: 1.7,
-        color: T.textMain,
-        fontWeight: 400,
-      }}>
-        {result.answer}
-      </div>
+      {/* ─── Answer Text with Real-Time Audio Word-by-Word Highlight ─── */}
+      <SpokenAnswerText answer={result.answer} isSpeaking={Boolean(isSpeaking)} speechProgress={speechProgress} />
 
       {/* ─── Sources Toggle ─── */}
       {result.sources && result.sources.length > 0 && (
@@ -337,38 +402,6 @@ export default function VoiceRagPage() {
       position: "relative",
       overflowX: "hidden",
     }}>
-      {/* ─── Mobile CSS Injector ─── */}
-      <style>{`
-        @media (max-width: 900px) {
-          .studio-layout {
-            flex-direction: column !important;
-            height: auto !important;
-            min-height: calc(100dvh - 46px) !important;
-            overflow-y: auto !important;
-          }
-          .canvas-panel {
-            flex: none !important;
-            height: 220px !important;
-            width: 100% !important;
-            border-right: none !important;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
-            padding: 12px 16px !important;
-          }
-          .canvas-art-desc {
-            display: none !important;
-          }
-          .studio-panel {
-            flex: 1 1 auto !important;
-            width: 100% !important;
-            padding: 20px 14px 40px !important;
-            overflow-y: visible !important;
-          }
-          .top-bar-sub {
-            display: none !important;
-          }
-        }
-      `}</style>
-
       {/* ══════ TOP APP BAR ══════ */}
       <header style={{
         position: "relative", zIndex: 30, flexShrink: 0, height: 46,
@@ -445,28 +478,32 @@ export default function VoiceRagPage() {
 
           {/* Bottom Art Description Tag */}
           <div className="canvas-art-desc" style={{
-            position: "relative", zIndex: 10,
-            background: "rgba(8, 14, 22, 0.85)",
+            position: "absolute",
+            bottom: 24,
+            left: 24,
+            zIndex: 10,
+            background: "rgba(8, 14, 22, 0.88)",
             backdropFilter: "blur(16px)",
             border: `1px solid ${T.glassBdr}`,
-            padding: "10px 14px",
-            borderRadius: 6,
-            maxWidth: 360,
+            padding: "12px 16px",
+            borderRadius: 8,
+            maxWidth: 380,
+            boxShadow: "0 12px 32px rgba(0,0,0,0.5)",
           }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: T.textMain, marginBottom: 2, display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: T.textMain, marginBottom: 4, display: "flex", alignItems: "center", gap: 8 }}>
               <span>VoiceRAG Studio</span>
               <span style={{
-                fontSize: 10, fontFamily: "monospace",
+                fontSize: 10.5, fontFamily: "monospace",
                 background: `linear-gradient(90deg, ${T.brand}, ${T.purple}, ${T.emerald})`,
                 WebkitBackgroundClip: "text",
                 WebkitTextFillColor: "transparent",
                 fontWeight: 800,
-                letterSpacing: 1,
+                letterSpacing: 1.2,
               }}>
                 BY AlphaCODERS
               </span>
             </div>
-            <div style={{ fontSize: 11, color: T.textMuted, lineHeight: 1.4 }}>
+            <div className="canvas-art-desc-sub" style={{ fontSize: 11.5, color: T.textMuted, lineHeight: 1.45 }}>
               End-to-end voice transcription, sub-200ms document retrieval, and native speech synthesis across 11 Indic languages.
             </div>
           </div>
@@ -663,43 +700,53 @@ export default function VoiceRagPage() {
               )}
             </form>
 
-            {/* ─── Suggestion Chips (Centered) ─── */}
-            <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", alignItems: "center", gap: 5 }}>
+            {/* ─── Suggestion Chips (Organized & Multilingual) ─── */}
+            <div style={{
+              display: "flex",
+              flexWrap: "wrap",
+              justifyContent: "center",
+              alignItems: "center",
+              gap: 6,
+              maxWidth: 600,
+              margin: "0 auto",
+            }}>
               {(showAllSuggestions ? SUGGESTIONS : SUGGESTIONS.slice(0, 3)).map((item) => (
                 <button
-                  key={item.label}
+                  key={item.lang + item.label}
                   type="button"
                   onClick={() => submit(item.query)}
                   style={{
                     background: "rgba(255,255,255,0.03)",
                     border: `1px solid ${T.glassBdr}`,
-                    borderRadius: 5,
-                    padding: "4px 8px",
-                    fontSize: 11,
+                    borderRadius: 6,
+                    padding: "5px 9px",
+                    fontSize: 11.5,
                     color: T.textSec,
                     cursor: "pointer",
                     display: "flex",
                     alignItems: "center",
-                    gap: 5,
-                    transition: "all 0.15s",
+                    gap: 6,
+                    transition: "all 0.15s ease",
                   }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.borderColor = T.brandBdr;
                     e.currentTarget.style.color = T.textMain;
+                    e.currentTarget.style.background = "rgba(108,99,255,0.08)";
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.borderColor = T.glassBdr;
                     e.currentTarget.style.color = T.textSec;
+                    e.currentTarget.style.background = "rgba(255,255,255,0.03)";
                   }}
                 >
                   <span style={{
-                    fontSize: 8.5,
+                    fontSize: 9,
                     fontFamily: "monospace",
-                    padding: "1px 3px",
+                    padding: "1px 4px",
                     borderRadius: 3,
                     fontWeight: 700,
-                    background: item.lang === "HI" ? "rgba(245,158,11,0.15)" : item.lang === "GU" ? "rgba(16,185,129,0.15)" : "rgba(108,99,255,0.15)",
-                    color: item.lang === "HI" ? T.warning : item.lang === "GU" ? T.success : T.brandLight,
+                    background: item.lang === "HI" ? "rgba(245,158,11,0.15)" : item.lang === "GU" ? "rgba(16,185,129,0.15)" : item.lang === "TA" || item.lang === "TE" ? "rgba(56,189,248,0.15)" : "rgba(108,99,255,0.15)",
+                    color: item.lang === "HI" ? T.warning : item.lang === "GU" ? T.success : item.lang === "TA" || item.lang === "TE" ? T.accent : T.brandLight,
                     border: `1px solid ${item.lang === "HI" ? "rgba(245,158,11,0.3)" : item.lang === "GU" ? "rgba(16,185,129,0.3)" : "rgba(108,99,255,0.3)"}`,
                   }}>
                     {item.lang}
@@ -715,8 +762,8 @@ export default function VoiceRagPage() {
                 style={{
                   background: "rgba(108,99,255,0.08)",
                   border: `1px solid ${T.brandBdr}`,
-                  borderRadius: 5,
-                  padding: "4px 8px",
+                  borderRadius: 6,
+                  padding: "5px 10px",
                   fontSize: 11,
                   fontFamily: "monospace",
                   color: T.brandLight,
@@ -727,7 +774,7 @@ export default function VoiceRagPage() {
                   fontWeight: 600,
                 }}
               >
-                <span>{showAllSuggestions ? "▴ less" : `+${SUGGESTIONS.length - 3} languages ▾`}</span>
+                <span>{showAllSuggestions ? "▴ less" : `+${SUGGESTIONS.length - 3} Indic Languages ▾`}</span>
               </button>
             </div>
 
@@ -745,6 +792,7 @@ export default function VoiceRagPage() {
                   onSpeak={voice.speakAnswer}
                   isSpeaking={voice.isSpeakingAnswer}
                   onStopSpeaking={voice.stopSpeaking}
+                  speechProgress={voice.speechProgress}
                 />
               )}
             </AnimatePresence>
