@@ -20,6 +20,7 @@ const T = {
   brandBdr: "rgba(108,99,255,0.3)",
   brandGlow: "rgba(108,99,255,0.4)",
   emerald: "#10B981",
+  emeraldLight: "#34D399",
   emeraldDim: "rgba(16,185,129,0.12)",
   emeraldBdr: "rgba(16,185,129,0.3)",
   accent: "#38BDF8",
@@ -111,79 +112,34 @@ function InlineResultCard({
         boxShadow: "0 16px 40px rgba(0, 0, 0, 0.45)",
       }}
     >
-      {/* ─── Top Bar: Latency & Actions ─── */}
+      {/* ─── Top Bar: Latency & Close ─── */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{
-            display: "flex", alignItems: "center", gap: 5,
-            fontSize: 11, fontFamily: "monospace", color: T.accent,
-            background: "rgba(56, 189, 248, 0.08)",
-            border: "1px solid rgba(56, 189, 248, 0.2)",
-            padding: "2px 8px", borderRadius: 4, fontWeight: 700,
-          }}>
-            <span>⚡</span>
-            <span>{formattedLatency}</span>
-          </div>
+        <div style={{
+          display: "flex", alignItems: "center", gap: 5,
+          fontSize: 11, fontFamily: "monospace", color: T.accent,
+          background: "rgba(56, 189, 248, 0.08)",
+          border: "1px solid rgba(56, 189, 248, 0.2)",
+          padding: "3px 8px", borderRadius: 4, fontWeight: 700,
+        }}>
+          <span>⚡</span>
+          <span>{formattedLatency}</span>
         </div>
 
-        {/* Actions (Speak / Stop & Close) */}
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          {onSpeak && result.answer && (
-            <button
-              type="button"
-              onClick={() => (isSpeaking ? onStopSpeaking?.() : onSpeak(result.answer))}
-              style={{
-                background: isSpeaking ? "rgba(239,68,68,0.15)" : "rgba(108,99,255,0.12)",
-                border: `1px solid ${isSpeaking ? "rgba(239,68,68,0.35)" : T.brandBdr}`,
-                borderRadius: 5,
-                padding: "4px 10px",
-                fontSize: 11,
-                fontFamily: "monospace",
-                color: isSpeaking ? T.danger : T.brandLight,
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-                fontWeight: 600,
-                transition: "all 0.15s",
-              }}
-            >
-              {isSpeaking ? (
-                <>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-                    <rect x="5" y="5" width="14" height="14" rx="2" />
-                  </svg>
-                  <span>Stop Audio</span>
-                </>
-              ) : (
-                <>
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-                    <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
-                    <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
-                  </svg>
-                  <span>Listen</span>
-                </>
-              )}
-            </button>
-          )}
-
-          {/* Close button */}
-          <button
-            onClick={onClose}
-            aria-label="Close answer"
-            style={{
-              background: "rgba(255,255,255,0.05)", border: `1px solid ${T.glassBdr}`,
-              color: T.textMuted, borderRadius: 5,
-              fontSize: 13, cursor: "pointer", padding: "3px 8px", lineHeight: 1,
-              transition: "all 0.15s",
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.color = T.textMain)}
-            onMouseLeave={(e) => (e.currentTarget.style.color = T.textMuted)}
-          >
-            ✕
-          </button>
-        </div>
+        {/* Close button */}
+        <button
+          onClick={onClose}
+          aria-label="Close answer"
+          style={{
+            background: "rgba(255,255,255,0.05)", border: `1px solid ${T.glassBdr}`,
+            color: T.textMuted, borderRadius: 5,
+            fontSize: 13, cursor: "pointer", padding: "4px 8px", lineHeight: 1,
+            transition: "all 0.15s",
+          }}
+          onMouseEnter={(e) => (e.currentTarget.style.color = T.textMain)}
+          onMouseLeave={(e) => (e.currentTarget.style.color = T.textMuted)}
+        >
+          ✕
+        </button>
       </div>
 
       {/* ─── Query Echo ─── */}
@@ -339,7 +295,10 @@ export default function VoiceRagPage() {
     voice.unlockAudio();
     voice.clearResult?.();
 
-    await text.search(q);
+    const res = await text.search(q);
+    if (res?.answer) {
+      voice.speakAnswer(res.answer);
+    }
   }, [isLoading, text, voice]);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -378,6 +337,37 @@ export default function VoiceRagPage() {
       position: "relative",
       overflowX: "hidden",
     }}>
+      {/* ─── Mobile CSS Injector ─── */}
+      <style>{`
+        @media (max-width: 900px) {
+          .studio-layout {
+            flex-direction: column !important;
+            height: auto !important;
+            min-height: calc(100dvh - 46px) !important;
+            overflow-y: auto !important;
+          }
+          .canvas-panel {
+            flex: none !important;
+            height: 220px !important;
+            width: 100% !important;
+            border-right: none !important;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+            padding: 12px 16px !important;
+          }
+          .canvas-art-desc {
+            display: none !important;
+          }
+          .studio-panel {
+            flex: 1 1 auto !important;
+            width: 100% !important;
+            padding: 20px 14px 40px !important;
+            overflow-y: visible !important;
+          }
+          .top-bar-sub {
+            display: none !important;
+          }
+        }
+      `}</style>
 
       {/* ══════ TOP APP BAR ══════ */}
       <header style={{
@@ -385,7 +375,7 @@ export default function VoiceRagPage() {
         borderBottom: `1px solid ${T.glassBdr}`,
         background: "rgba(6,8,16,0.92)",
         backdropFilter: "blur(20px)",
-        display: "flex", alignItems: "center", padding: "0 20px", gap: 12,
+        display: "flex", alignItems: "center", padding: "0 16px", gap: 10,
       }}>
         {/* Status indicator */}
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -396,14 +386,14 @@ export default function VoiceRagPage() {
             display: "block",
           }} className={isLoading ? "animate-pulse" : ""} />
           <span style={{ fontSize: 11, fontFamily: "monospace", color: T.textSec, letterSpacing: 0.8, fontWeight: 600 }}>
-            {isLoading ? "processing pipeline…" : `${CHUNK_COUNT.toLocaleString()} indexed chunks`}
+            {isLoading ? "processing…" : `${CHUNK_COUNT.toLocaleString()} chunks`}
           </span>
         </div>
 
-        <span style={{ color: T.sep, fontSize: 13 }}>·</span>
+        <span className="top-bar-sub" style={{ color: T.sep, fontSize: 13 }}>·</span>
 
-        <span style={{ fontSize: 11, fontFamily: "monospace", color: T.textMuted, letterSpacing: 0.8 }}>
-          11 Indic Languages Supported
+        <span className="top-bar-sub" style={{ fontSize: 11, fontFamily: "monospace", color: T.textMuted, letterSpacing: 0.8 }}>
+          11 Indic Languages
         </span>
 
         <div style={{ flex: 1 }} />
@@ -419,33 +409,17 @@ export default function VoiceRagPage() {
           }}>
             AlphaCODERS
           </span>
-          <span style={{ fontSize: 9, fontFamily: "monospace", color: T.textFaint, letterSpacing: 1, textTransform: "uppercase" }}>
+          <span className="top-bar-sub" style={{ fontSize: 9, fontFamily: "monospace", color: T.textFaint, letterSpacing: 1, textTransform: "uppercase" }}>
             · HH GOA 2026
           </span>
         </div>
       </header>
 
       {/* ══════ DUAL PANEL STUDIO LAYOUT ══════ */}
-      <div style={{
-        flex: 1,
-        display: "flex",
-        width: "100%",
-        height: "calc(100dvh - 46px)",
-        overflow: "hidden",
-      }}>
+      <div className="studio-layout">
 
         {/* ─── LEFT PANEL: VIBRANT INTERACTIVE PIXEL ART CANVAS ─── */}
-        <div style={{
-          flex: "1 1 50%",
-          position: "relative",
-          display: "flex",
-          flexDirection: "column",
-          justifyContent: "space-between",
-          padding: "20px 24px",
-          borderRight: `1px solid ${T.glassBdr}`,
-          background: "linear-gradient(135deg, #041410 0%, #020C09 100%)",
-          overflow: "hidden",
-        }}>
+        <div className="canvas-panel">
           {/* High-res Interactive Canvas */}
           <div style={{
             position: "absolute",
@@ -470,7 +444,7 @@ export default function VoiceRagPage() {
           </div>
 
           {/* Bottom Art Description Tag */}
-          <div style={{
+          <div className="canvas-art-desc" style={{
             position: "relative", zIndex: 10,
             background: "rgba(8, 14, 22, 0.85)",
             backdropFilter: "blur(16px)",
@@ -499,16 +473,7 @@ export default function VoiceRagPage() {
         </div>
 
         {/* ─── RIGHT PANEL: STANDARD STUDIO QUERY INTERFACE ─── */}
-        <div style={{
-          flex: "1 1 50%",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "flex-start",
-          padding: "28px 28px 28px",
-          overflowY: "auto",
-          background: "radial-gradient(ellipse 80% 50% at 50% 0%, rgba(108,99,255,0.05) 0%, transparent 70%), #080B14",
-        }}>
+        <div className="studio-panel">
           <div style={{ width: "100%", maxWidth: 620, display: "flex", flexDirection: "column", gap: 14 }}>
 
             {/* ─── Sarvam Mandala Emblem & Header ─── */}
