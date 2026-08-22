@@ -51,57 +51,57 @@ export default function PixelCanvas({ className, style }: { className?: string; 
     const TILE_SIZE = 4;
     let pixels: Pixel[] = [];
 
-    // Authentic Sarvam Indus Palette Generator (Lush emerald hills, sunny moss, deep river azure & foam)
+    // Pristine Sarvam Indus Palette (Lush emerald hills, sunlit moss, shimmering turquoise river & jade depths)
     function generateLandscapeColor(normX: number, normY: number): [number, number, number, number] {
-      // 1. Top Section: Sunlit Canopy & Forest Green (0.0 to 0.45)
-      if (normY < 0.45) {
-        const noise = Math.sin(normX * 12 + normY * 8) * 0.5 + Math.cos(normX * 6 - normY * 10) * 0.5;
-        if (normY < 0.18) {
-          // Upper forest canopy
-          const r = Math.floor(45 + noise * 25);
-          const g = Math.floor(115 + noise * 45);
-          const b = Math.floor(60 + noise * 30);
-          return [r, g, b, 0.95];
+      // 1. Top Section: Sunlit Emerald Forest & Bright Moss (0.0 to 0.42)
+      if (normY < 0.42) {
+        const noise = Math.sin(normX * 10 + normY * 8) * 0.5 + Math.cos(normX * 6 - normY * 12) * 0.5;
+        if (normY < 0.16) {
+          // Sunlit canopy top
+          const r = Math.floor(16 + noise * 20);
+          const g = Math.floor(135 + noise * 45);
+          const b = Math.floor(75 + noise * 30);
+          return [r, g, b, 0.92];
         } else {
-          // Sunlit lush emerald & bright chartreuse moss
-          const r = Math.floor(75 + noise * 40);
-          const g = Math.floor(175 + noise * 55);
-          const b = Math.floor(70 + noise * 40);
-          return [r, g, b, 0.98];
+          // Lush vibrant emerald & sunny chartreuse moss
+          const r = Math.floor(25 + noise * 35);
+          const g = Math.floor(185 + noise * 50);
+          const b = Math.floor(95 + noise * 40);
+          return [r, g, b, 0.96];
         }
       }
-      // 2. Middle Section: River Bank & Water Transition (0.45 to 0.62)
-      else if (normY < 0.62) {
-        const noise = Math.sin(normX * 14 + normY * 12) * 0.5 + 0.5;
-        if (normY > 0.50 && normY < 0.58 && normX > 0.15 && normX < 0.85) {
-          // River foam & white-blue rapids reflection (matching Sarvam Indus central reflection)
-          const r = Math.floor(190 + noise * 55);
-          const g = Math.floor(225 + noise * 30);
+      // 2. Middle Section: River Foam, Shimmer & Rapids (0.42 to 0.65)
+      else if (normY < 0.65) {
+        const noise = Math.sin(normX * 14 + normY * 10) * 0.5 + 0.5;
+        if (normY > 0.48 && normY < 0.56 && normX > 0.15 && normX < 0.85) {
+          // Central river foam & sunlit reflection
+          const r = Math.floor(180 + noise * 55);
+          const g = Math.floor(240 + noise * 15);
           const b = Math.floor(245 + noise * 10);
-          return [r, g, b, 1.0];
-        } else {
-          // Rich turquoise river water
-          const r = Math.floor(35 + noise * 30);
-          const g = Math.floor(155 + noise * 50);
-          const b = Math.floor(195 + noise * 45);
           return [r, g, b, 0.98];
+        } else {
+          // Brilliant turquoise river water
+          const r = Math.floor(14 + noise * 25);
+          const g = Math.floor(180 + noise * 45);
+          const b = Math.floor(190 + noise * 45);
+          return [r, g, b, 0.95];
         }
       }
-      // 3. Bottom Section: Deep River Azure & Reflection Pool (0.62 to 1.0)
+      // 3. Bottom Section: Deep Jade & Cerulean River Bed (0.65 to 1.0)
       else {
-        const wave = Math.cos(normX * 10 - normY * 14) * 0.5 + 0.5;
-        if (normY > 0.82) {
-          // Deep teal-black river bed
-          const r = Math.floor(20 + wave * 25);
-          const g = Math.floor(80 + wave * 40);
-          const b = Math.floor(125 + wave * 50);
-          return [r, g, b, 0.95];
+        const wave = Math.cos(normX * 8 - normY * 12) * 0.5 + 0.5;
+        if (normY > 0.84) {
+          // Deep teal-jade river bed
+          const r = Math.floor(10 + wave * 18);
+          const g = Math.floor(105 + wave * 35);
+          const b = Math.floor(135 + wave * 45);
+          return [r, g, b, 0.92];
         } else {
-          // Flowing cerulean blue river
-          const r = Math.floor(35 + wave * 35);
-          const g = Math.floor(130 + wave * 50);
-          const b = Math.floor(190 + wave * 55);
-          return [r, g, b, 0.98];
+          // Deep flowing cerulean-jade
+          const r = Math.floor(12 + wave * 22);
+          const g = Math.floor(145 + wave * 45);
+          const b = Math.floor(175 + wave * 50);
+          return [r, g, b, 0.96];
         }
       }
     }

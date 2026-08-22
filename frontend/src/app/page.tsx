@@ -370,7 +370,7 @@ export default function VoiceRagPage() {
     <div style={{
       width: "100vw",
       minHeight: "100dvh",
-      background: T.bgVoid,
+      background: "linear-gradient(180deg, #041410 0%, #020C09 100%)",
       color: T.textMain,
       display: "flex",
       flexDirection: "column",
@@ -379,40 +379,20 @@ export default function VoiceRagPage() {
       overflowX: "hidden",
     }}>
 
-      {/* ══════ INTERACTIVE AMBIENT BACKGROUND CANVAS ══════ */}
-      <div style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 0,
-        opacity: 0.92,
-        pointerEvents: "auto",
-      }}>
-        <PixelCanvas />
-      </div>
-
-      {/* Subtle radial dark overlay for high contrast readability while keeping pixel art vivid */}
-      <div style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 1,
-        background: "radial-gradient(ellipse 85% 65% at 50% 35%, rgba(6,8,16,0.3) 0%, rgba(6,8,16,0.78) 100%)",
-        pointerEvents: "none",
-      }} />
-
       {/* ══════ TOP APP BAR ══════ */}
       <header style={{
-        position: "relative", zIndex: 20, flexShrink: 0, height: 48,
+        position: "relative", zIndex: 30, flexShrink: 0, height: 46,
         borderBottom: `1px solid ${T.glassBdr}`,
-        background: "rgba(6,8,16,0.85)",
+        background: "rgba(6,8,16,0.92)",
         backdropFilter: "blur(20px)",
-        display: "flex", alignItems: "center", padding: "0 24px", gap: 12,
+        display: "flex", alignItems: "center", padding: "0 20px", gap: 12,
       }}>
         {/* Status indicator */}
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <span style={{
-            width: 8, height: 8, borderRadius: "50%",
+            width: 7, height: 7, borderRadius: "50%",
             background: isLoading ? T.warning : T.emerald,
-            boxShadow: `0 0 10px ${isLoading ? T.warning : T.emerald}`,
+            boxShadow: `0 0 8px ${isLoading ? T.warning : T.emerald}`,
             display: "block",
           }} className={isLoading ? "animate-pulse" : ""} />
           <span style={{ fontSize: 11, fontFamily: "monospace", color: T.textSec, letterSpacing: 0.8, fontWeight: 600 }}>
@@ -445,284 +425,333 @@ export default function VoiceRagPage() {
         </div>
       </header>
 
-      {/* ══════ MAIN CENTERED STUDIO CONTAINER ══════ */}
-      <main style={{
-        position: "relative",
-        zIndex: 10,
+      {/* ══════ DUAL PANEL STUDIO LAYOUT ══════ */}
+      <div style={{
         flex: 1,
-        width: "100%",
-        maxWidth: 780,
-        margin: "0 auto",
-        padding: "36px 20px 60px",
         display: "flex",
-        flexDirection: "column",
-        justifyContent: result || isLoading ? "flex-start" : "center",
-        alignItems: "center",
-        gap: 20,
-        minHeight: "calc(100dvh - 48px)",
+        width: "100%",
+        height: "calc(100dvh - 46px)",
+        overflow: "hidden",
       }}>
 
-        {/* ─── Sarvam Mandala Emblem & Centered Header ─── */}
-        <motion.div
-          animate={{ scale: result || isLoading ? 0.92 : 1, y: result || isLoading ? 0 : 0 }}
-          transition={{ duration: 0.3 }}
-          style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", gap: 10 }}
-        >
-          <motion.div
-            whileHover={{ rotate: 180, scale: 1.08 }}
-            transition={{ duration: 0.7, ease: "easeInOut" }}
-            style={{ cursor: "pointer", filter: "drop-shadow(0 0 16px rgba(108,99,255,0.35))" }}
-          >
-            <SarvamMandala size={48} />
-          </motion.div>
-
-          <h1 style={{
-            fontSize: "clamp(26px, 3.2vw, 36px)",
-            fontWeight: 800,
-            letterSpacing: -0.8,
-            lineHeight: 1.1,
-            color: T.textMain,
-            margin: 0,
-            fontFamily: "var(--font-space-grotesk), sans-serif",
-            background: "linear-gradient(180deg, #FFFFFF 0%, #CBD5E1 100%)",
-            WebkitBackgroundClip: "text",
-            WebkitTextFillColor: "transparent",
-          }}>
-            VoiceRAG Studio
-          </h1>
-
-          <p style={{
-            fontSize: 13,
-            color: T.textSec,
-            maxWidth: 520,
-            lineHeight: 1.5,
-            margin: 0,
-          }}>
-            Speak or ask questions across <strong>11 Indic Languages</strong> with ultra-low sub-200ms document retrieval & Sarvam voice synthesis.
-          </p>
-        </motion.div>
-
-        {/* ─── Centered Search & Voice Input Box ─── */}
-        <form onSubmit={handleSubmit} style={{ width: "100%", position: "relative" }}>
+        {/* ─── LEFT PANEL: VIBRANT INTERACTIVE PIXEL ART CANVAS ─── */}
+        <div style={{
+          flex: "1 1 50%",
+          position: "relative",
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "space-between",
+          padding: "20px 24px",
+          borderRight: `1px solid ${T.glassBdr}`,
+          background: "linear-gradient(135deg, #041410 0%, #020C09 100%)",
+          overflow: "hidden",
+        }}>
+          {/* High-res Interactive Canvas */}
           <div style={{
-            position: "relative",
-            display: "flex",
-            alignItems: "center",
-            background: "rgba(14, 19, 31, 0.95)",
-            backdropFilter: "blur(20px)",
-            border: `1.5px solid ${isVoiceActive ? T.brand : "rgba(255, 255, 255, 0.12)"}`,
-            borderRadius: 12,
-            padding: "8px 10px 8px 12px",
-            boxShadow: isVoiceActive ? `0 0 30px ${T.brandGlow}` : "0 8px 30px rgba(0,0,0,0.4)",
-            transition: "all 0.25s ease",
+            position: "absolute",
+            inset: 0,
+            zIndex: 1,
           }}>
-            {/* Voice Mic Button */}
-            <button
-              type="button"
-              onClick={voice.toggle}
-              aria-label="Toggle voice recording"
-              title={isVoiceActive ? "Stop voice recording" : "Click to speak in any language"}
-              style={{
-                background: isVoiceActive ? "rgba(239,68,68,0.2)" : "rgba(108,99,255,0.15)",
-                border: `1px solid ${isVoiceActive ? T.danger : T.brandBdr}`,
-                borderRadius: 8,
-                width: 38,
-                height: 38,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                cursor: "pointer",
-                marginRight: 10,
-                transition: "all 0.2s",
-                flexShrink: 0,
-                color: isVoiceActive ? T.danger : T.brandLight,
-                boxShadow: isVoiceActive ? "0 0 14px rgba(239,68,68,0.5)" : "none",
-              }}
-            >
-              {isVoiceActive ? (
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
-                  <rect x="5" y="5" width="14" height="14" rx="2" />
-                </svg>
-              ) : (
-                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
-                  <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-                  <line x1="12" y1="19" x2="12" y2="22" />
-                  <line x1="8" y1="22" x2="16" y2="22" />
-                </svg>
-              )}
-            </button>
-
-            {/* Text input */}
-            <input
-              ref={inputRef}
-              type="text"
-              value={inputVal}
-              onChange={(e) => setInputVal(e.target.value)}
-              placeholder={isVoiceActive ? "Listening to your voice..." : "Ask a question in any language (e.g. Hindi, Gujarati, Tamil, English)..."}
-              disabled={isLoading}
-              style={{
-                flex: 1,
-                background: "transparent",
-                border: "none",
-                outline: "none",
-                color: T.textMain,
-                fontSize: 14,
-                fontFamily: "inherit",
-              }}
-            />
-
-            {/* Clear button */}
-            {inputVal.length > 0 && (
-              <button
-                type="button"
-                onClick={clearAll}
-                style={{
-                  background: "transparent",
-                  border: "none",
-                  color: T.textMuted,
-                  fontSize: 15,
-                  cursor: "pointer",
-                  padding: "0 8px",
-                }}
-              >
-                ✕
-              </button>
-            )}
-
-            {/* Submit button */}
-            <button
-              type="submit"
-              disabled={!inputVal.trim() || isLoading}
-              style={{
-                background: inputVal.trim() && !isLoading ? T.brand : "rgba(255,255,255,0.06)",
-                border: "none",
-                borderRadius: 8,
-                width: 38,
-                height: 38,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                cursor: inputVal.trim() && !isLoading ? "pointer" : "default",
-                transition: "all 0.2s",
-                flexShrink: 0,
-                boxShadow: inputVal.trim() && !isLoading ? `0 0 15px ${T.brandGlow}` : "none",
-              }}
-            >
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={inputVal.trim() && !isLoading ? "#FFF" : T.textMuted} strokeWidth="2.5">
-                <line x1="5" y1="12" x2="19" y2="12" />
-                <polyline points="12 5 19 12 12 19" />
-              </svg>
-            </button>
+            <PixelCanvas />
           </div>
 
-          {/* Voice Listening Active Banner */}
-          {isVoiceActive && (
-            <motion.div
-              initial={{ opacity: 0, y: -6 }}
-              animate={{ opacity: 1, y: 0 }}
-              style={{
-                display: "flex", alignItems: "center", justifyContent: "space-between",
-                marginTop: 8, padding: "8px 14px",
-                background: "rgba(108,99,255,0.12)",
-                backdropFilter: "blur(12px)",
-                border: `1px solid ${T.brandBdr}`,
-                borderRadius: 8,
+          {/* Floating Canvas Badges */}
+          <div style={{ position: "relative", zIndex: 10, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{
+              fontSize: 10, fontFamily: "monospace", letterSpacing: 1.2,
+              textTransform: "uppercase", color: T.emerald,
+              background: "rgba(6, 20, 16, 0.85)",
+              backdropFilter: "blur(12px)",
+              border: `1px solid ${T.emeraldBdr}`,
+              padding: "4px 9px", borderRadius: 4, fontWeight: 700,
+            }}>
+              ● VoiceRAG Studio
+            </span>
+          </div>
+
+          {/* Bottom Art Description Tag */}
+          <div style={{
+            position: "relative", zIndex: 10,
+            background: "rgba(8, 14, 22, 0.85)",
+            backdropFilter: "blur(16px)",
+            border: `1px solid ${T.glassBdr}`,
+            padding: "10px 14px",
+            borderRadius: 6,
+            maxWidth: 360,
+          }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: T.textMain, marginBottom: 2, display: "flex", alignItems: "center", gap: 8 }}>
+              <span>VoiceRAG Studio</span>
+              <span style={{
+                fontSize: 10, fontFamily: "monospace",
+                background: `linear-gradient(90deg, ${T.brand}, ${T.purple}, ${T.emerald})`,
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                fontWeight: 800,
+                letterSpacing: 1,
+              }}>
+                BY AlphaCODERS
+              </span>
+            </div>
+            <div style={{ fontSize: 11, color: T.textMuted, lineHeight: 1.4 }}>
+              End-to-end voice transcription, sub-200ms document retrieval, and native speech synthesis across 11 Indic languages.
+            </div>
+          </div>
+        </div>
+
+        {/* ─── RIGHT PANEL: STANDARD STUDIO QUERY INTERFACE ─── */}
+        <div style={{
+          flex: "1 1 50%",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "flex-start",
+          padding: "28px 28px 28px",
+          overflowY: "auto",
+          background: "radial-gradient(ellipse 80% 50% at 50% 0%, rgba(108,99,255,0.05) 0%, transparent 70%), #080B14",
+        }}>
+          <div style={{ width: "100%", maxWidth: 620, display: "flex", flexDirection: "column", gap: 14 }}>
+
+            {/* ─── Sarvam Mandala Emblem & Header ─── */}
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", gap: 6 }}>
+              <motion.div
+                whileHover={{ rotate: 180, scale: 1.06 }}
+                transition={{ duration: 0.7, ease: "easeInOut" }}
+                style={{ cursor: "pointer" }}
+              >
+                <SarvamMandala size={38} />
+              </motion.div>
+
+              <h1 style={{
+                fontSize: "clamp(22px, 2.5vw, 30px)",
+                fontWeight: 800,
+                letterSpacing: -0.6,
+                lineHeight: 1.1,
+                color: T.textMain,
+                margin: 0,
+                fontFamily: "var(--font-space-grotesk), sans-serif",
+              }}>
+                VoiceRAG Studio
+              </h1>
+
+              <p style={{
                 fontSize: 12,
-                color: T.textSec,
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{
-                  width: 8, height: 8, borderRadius: "50%",
-                  background: T.brandLight,
-                  boxShadow: `0 0 10px ${T.brandLight}`,
-                }} className="animate-pulse" />
-                <span style={{ fontWeight: 700, color: T.textMain }}>Listening…</span>
-                <span style={{ color: T.textMuted, fontStyle: voice.liveTranscript ? "italic" : "normal" }}>
-                  {voice.liveTranscript ? `"${voice.liveTranscript}"` : "Speak now into your microphone"}
-                </span>
+                color: T.textMuted,
+                maxWidth: 460,
+                lineHeight: 1.4,
+                margin: 0,
+              }}>
+                Ask any question across <strong>11 Indic Languages</strong> with ultra-low sub-200ms retrieval & Sarvam voice synthesis.
+              </p>
+            </div>
+
+            {/* ─── Search & Voice Input Box ─── */}
+            <form onSubmit={handleSubmit} style={{ width: "100%" }}>
+              <div style={{
+                position: "relative",
+                display: "flex",
+                alignItems: "center",
+                background: T.bgInput,
+                border: `1.5px solid ${isVoiceActive ? T.brand : T.glassBdr}`,
+                borderRadius: 8,
+                padding: "6px 8px 6px 10px",
+                boxShadow: isVoiceActive ? `0 0 20px ${T.brandGlow}` : "0 4px 18px rgba(0,0,0,0.3)",
+                transition: "all 0.2s",
+              }}>
+                {/* Voice Mic Button (Standard SVG) */}
+                <button
+                  type="button"
+                  onClick={voice.toggle}
+                  aria-label="Toggle voice recording"
+                  title={isVoiceActive ? "Stop voice recording" : "Click to speak in any language"}
+                  style={{
+                    background: isVoiceActive ? "rgba(239,68,68,0.2)" : "rgba(108,99,255,0.12)",
+                    border: `1px solid ${isVoiceActive ? T.danger : T.brandBdr}`,
+                    borderRadius: 6,
+                    width: 32,
+                    height: 32,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    cursor: "pointer",
+                    marginRight: 8,
+                    transition: "all 0.2s",
+                    flexShrink: 0,
+                    color: isVoiceActive ? T.danger : T.brandLight,
+                  }}
+                >
+                  {isVoiceActive ? (
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                      <rect x="5" y="5" width="14" height="14" rx="2" />
+                    </svg>
+                  ) : (
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+                      <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                      <line x1="12" y1="19" x2="12" y2="22" />
+                      <line x1="8" y1="22" x2="16" y2="22" />
+                    </svg>
+                  )}
+                </button>
+
+                {/* Text input */}
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={inputVal}
+                  onChange={(e) => setInputVal(e.target.value)}
+                  placeholder={isVoiceActive ? "Listening to your voice..." : "Ask a question in any language..."}
+                  disabled={isLoading}
+                  style={{
+                    flex: 1,
+                    background: "transparent",
+                    border: "none",
+                    outline: "none",
+                    color: T.textMain,
+                    fontSize: 13,
+                    fontFamily: "inherit",
+                  }}
+                />
+
+                {/* Clear button */}
+                {inputVal.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={clearAll}
+                    style={{
+                      background: "transparent",
+                      border: "none",
+                      color: T.textMuted,
+                      fontSize: 14,
+                      cursor: "pointer",
+                      padding: "0 6px",
+                    }}
+                  >
+                    ✕
+                  </button>
+                )}
+
+                {/* Submit button */}
+                <button
+                  type="submit"
+                  disabled={!inputVal.trim() || isLoading}
+                  style={{
+                    background: inputVal.trim() && !isLoading ? T.brand : "rgba(255,255,255,0.05)",
+                    border: "none",
+                    borderRadius: 6,
+                    width: 30,
+                    height: 30,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    cursor: inputVal.trim() && !isLoading ? "pointer" : "default",
+                    transition: "all 0.2s",
+                    flexShrink: 0,
+                  }}
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={inputVal.trim() && !isLoading ? "#FFF" : T.textMuted} strokeWidth="2.5">
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                    <polyline points="12 5 19 12 12 19" />
+                  </svg>
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={voice.stopRecording}
-                style={{
-                  background: "rgba(239,68,68,0.2)",
-                  border: "1px solid rgba(239,68,68,0.4)",
-                  borderRadius: 4,
-                  padding: "3px 8px",
-                  fontSize: 10,
-                  fontFamily: "monospace",
-                  color: T.danger,
-                  cursor: "pointer",
-                  fontWeight: 700,
-                }}
-              >
-                ⏹ STOP & SEARCH
-              </button>
-            </motion.div>
-          )}
-        </form>
 
-        {/* ─── Suggestion Chips (Centered - Only shown when no answer is active) ─── */}
-        {!result && !isLoading && (
-          <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", alignItems: "center", gap: 6, width: "100%" }}>
-            {(showAllSuggestions ? SUGGESTIONS : SUGGESTIONS.slice(0, 4)).map((item) => (
-              <button
-                key={item.label}
-                type="button"
-                onClick={() => submit(item.query)}
-                style={{
-                  background: "rgba(14, 19, 31, 0.85)",
-                  backdropFilter: "blur(12px)",
-                  border: `1px solid ${T.glassBdr}`,
+              {/* Voice Listening Active Banner */}
+              {isVoiceActive && (
+                <div style={{
+                  display: "flex", alignItems: "center", justifyContent: "space-between",
+                  marginTop: 6, padding: "6px 12px",
+                  background: "rgba(108,99,255,0.08)",
+                  border: `1px solid ${T.brandBdr}`,
                   borderRadius: 6,
-                  padding: "6px 11px",
-                  fontSize: 12,
+                  fontSize: 11,
                   color: T.textSec,
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 6,
-                  transition: "all 0.18s ease",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = T.brandBdr;
-                  e.currentTarget.style.color = T.textMain;
-                  e.currentTarget.style.transform = "translateY(-1px)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = T.glassBdr;
-                  e.currentTarget.style.color = T.textSec;
-                  e.currentTarget.style.transform = "translateY(0px)";
-                }}
-              >
-                <span style={{
-                  fontSize: 9,
-                  fontFamily: "monospace",
-                  padding: "2px 4px",
-                  borderRadius: 3,
-                  fontWeight: 700,
-                  background: item.lang === "HI" ? "rgba(245,158,11,0.15)" : item.lang === "GU" ? "rgba(16,185,129,0.15)" : "rgba(108,99,255,0.15)",
-                  color: item.lang === "HI" ? T.warning : item.lang === "GU" ? T.success : T.brandLight,
-                  border: `1px solid ${item.lang === "HI" ? "rgba(245,158,11,0.3)" : item.lang === "GU" ? "rgba(16,185,129,0.3)" : "rgba(108,99,255,0.3)"}`,
                 }}>
-                  {item.lang}
-                </span>
-                <span>{item.label}</span>
-              </button>
-            ))}
+                  <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                    <span style={{
+                      width: 6, height: 6, borderRadius: "50%",
+                      background: T.brandLight,
+                      boxShadow: `0 0 8px ${T.brandLight}`,
+                    }} className="animate-pulse" />
+                    <span style={{ fontWeight: 600, color: T.textMain }}>Listening…</span>
+                    <span style={{ color: T.textMuted, fontStyle: voice.liveTranscript ? "italic" : "normal" }}>
+                      {voice.liveTranscript ? `"${voice.liveTranscript}"` : "Speak now in any language"}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={voice.stopRecording}
+                    style={{
+                      background: "rgba(239,68,68,0.15)",
+                      border: "1px solid rgba(239,68,68,0.35)",
+                      borderRadius: 4,
+                      padding: "2px 6px",
+                      fontSize: 9,
+                      fontFamily: "monospace",
+                      color: T.danger,
+                      cursor: "pointer",
+                      fontWeight: 700,
+                    }}
+                  >
+                    ⏹ STOP & SEARCH
+                  </button>
+                </div>
+              )}
+            </form>
 
-            {/* Expand / Collapse Button */}
-            {SUGGESTIONS.length > 4 && (
+            {/* ─── Suggestion Chips (Centered) ─── */}
+            <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", alignItems: "center", gap: 5 }}>
+              {(showAllSuggestions ? SUGGESTIONS : SUGGESTIONS.slice(0, 3)).map((item) => (
+                <button
+                  key={item.label}
+                  type="button"
+                  onClick={() => submit(item.query)}
+                  style={{
+                    background: "rgba(255,255,255,0.03)",
+                    border: `1px solid ${T.glassBdr}`,
+                    borderRadius: 5,
+                    padding: "4px 8px",
+                    fontSize: 11,
+                    color: T.textSec,
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 5,
+                    transition: "all 0.15s",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = T.brandBdr;
+                    e.currentTarget.style.color = T.textMain;
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = T.glassBdr;
+                    e.currentTarget.style.color = T.textSec;
+                  }}
+                >
+                  <span style={{
+                    fontSize: 8.5,
+                    fontFamily: "monospace",
+                    padding: "1px 3px",
+                    borderRadius: 3,
+                    fontWeight: 700,
+                    background: item.lang === "HI" ? "rgba(245,158,11,0.15)" : item.lang === "GU" ? "rgba(16,185,129,0.15)" : "rgba(108,99,255,0.15)",
+                    color: item.lang === "HI" ? T.warning : item.lang === "GU" ? T.success : T.brandLight,
+                    border: `1px solid ${item.lang === "HI" ? "rgba(245,158,11,0.3)" : item.lang === "GU" ? "rgba(16,185,129,0.3)" : "rgba(108,99,255,0.3)"}`,
+                  }}>
+                    {item.lang}
+                  </span>
+                  <span>{item.label}</span>
+                </button>
+              ))}
+
+              {/* Expand / Collapse Button */}
               <button
                 type="button"
                 onClick={() => setShowAllSuggestions((v) => !v)}
                 style={{
-                  background: "rgba(108,99,255,0.1)",
+                  background: "rgba(108,99,255,0.08)",
                   border: `1px solid ${T.brandBdr}`,
-                  borderRadius: 6,
-                  padding: "6px 11px",
+                  borderRadius: 5,
+                  padding: "4px 8px",
                   fontSize: 11,
                   fontFamily: "monospace",
                   color: T.brandLight,
@@ -733,33 +762,32 @@ export default function VoiceRagPage() {
                   fontWeight: 600,
                 }}
               >
-                <span>{showAllSuggestions ? "▴ less" : `+${SUGGESTIONS.length - 4} languages ▾`}</span>
+                <span>{showAllSuggestions ? "▴ less" : `+${SUGGESTIONS.length - 3} languages ▾`}</span>
               </button>
-            )}
-          </div>
-        )}
+            </div>
 
-        {/* ─── Centered Inline Result Card ─── */}
-        <div style={{ width: "100%", marginTop: 6 }}>
-          <AnimatePresence mode="wait">
-            {isLoading && (
-              <InlineResultCardSkeleton key="skeleton" query={displayQuery} />
-            )}
-            {!isLoading && result && (
-              <InlineResultCard
-                key="result"
-                result={result}
-                query={displayQuery}
-                onClose={clearAll}
-                onSpeak={voice.speakAnswer}
-                isSpeaking={voice.isSpeakingAnswer}
-                onStopSpeaking={voice.stopSpeaking}
-              />
-            )}
-          </AnimatePresence>
+            {/* ─── Inline Result Card ─── */}
+            <AnimatePresence mode="wait">
+              {isLoading && (
+                <InlineResultCardSkeleton key="skeleton" query={displayQuery} />
+              )}
+              {!isLoading && result && (
+                <InlineResultCard
+                  key="result"
+                  result={result}
+                  query={displayQuery}
+                  onClose={clearAll}
+                  onSpeak={voice.speakAnswer}
+                  isSpeaking={voice.isSpeakingAnswer}
+                  onStopSpeaking={voice.stopSpeaking}
+                />
+              )}
+            </AnimatePresence>
+
+          </div>
         </div>
 
-      </main>
+      </div>
     </div>
   );
 }
