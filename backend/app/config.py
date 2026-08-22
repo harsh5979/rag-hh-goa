@@ -24,12 +24,12 @@ class Settings(BaseSettings):
 
     # Comma-separated fallback model chain
     groq_fallback_models: str = (
-        "groq/compound-mini,openai/gpt-oss-20b,qwen/qwen3.6-27b"
+        "groq/compound-mini,openai/gpt-oss-120b"
     )
     # Comma-separated per-model timeout budgets (ms), same length as models
-    groq_timeouts_ms: str = "3000,5000,7000"
+    groq_timeouts_ms: str = "6000,8000"
 
-    groq_max_tokens:          int   = 200   # short focused answers
+    groq_max_tokens:          int   = 120   # short focused answers
     groq_retries_per_model:   int   = 1
     groq_temperature:         float = 0.05  # very low temp = more faithful to context
 

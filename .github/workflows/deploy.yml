@@ -123,16 +123,16 @@ jobs:
             SARVAM_API_KEY=${{ secrets.SARVAM_API_KEY }}
             GROQ_API_KEY=${{ secrets.GROQ_API_KEY }}
             GENERATION_MODE=auto
-            GROQ_FALLBACK_MODELS=llama-3.1-8b-instant,gemma2-9b-it,llama-3.3-70b-versatile
-            GROQ_TIMEOUTS_MS=250,350,500
-            GROQ_MAX_TOKENS=300
+            GROQ_FALLBACK_MODELS=groq/compound-mini,openai/gpt-oss-120b
+            GROQ_TIMEOUTS_MS=6000,8000
+            GROQ_MAX_TOKENS=250
             GROQ_RETRIES_PER_MODEL=1
-            GROQ_TEMPERATURE=0.1
+            GROQ_TEMPERATURE=0.05
             FAISS_INDEX_PATH=indexes/msmarco.faiss
             BM25_INDEX_PATH=indexes/msmarco.bm25
             METADATA_PATH=indexes/metadata.jsonl
-            TOP_K_DENSE=5
-            TOP_K_SPARSE=5
+            TOP_K_DENSE=6
+            TOP_K_SPARSE=6
             TOP_K_RERANK=4
             OFF_TOPIC_THRESHOLD=0.35
             GROUNDING_THRESHOLD=0.60
@@ -147,13 +147,14 @@ jobs:
 
             # ── 5. Build & Run Docker containers on server ─────────
             echo "Building and starting Docker services..."
-            docker compose -f docker-compose.yml build --parallel
-            docker compose -f docker-compose.yml up -d --remove-orphans
-            echo "✓ Containers started"
+            docker compose -f docker-compose.yml build --parallel redis backend frontend
+            docker compose -f docker-compose.yml up -d --remove-orphans redis backend frontend
 
-            # ── 6. Health checks ───────────────────────────────────
-            sleep 15
-            docker compose -f docker-compose.yml ps
+            echo "Waiting for services to become healthy..."
+            timeout 120s bash -c 'until docker compose ps | grep -q "healthy"; do sleep 3; done' || true
+            docker compose ps
+
+            echo "✓ Deployment complete! VoiceRAG Studio is live."
             curl -f http://localhost:8000/health || true
             curl -f http://localhost:3000 || true
 

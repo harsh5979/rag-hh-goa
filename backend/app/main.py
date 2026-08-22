@@ -28,6 +28,18 @@ async def lifespan(app: FastAPI):
     
     logger.info("4. Initializing Groq Generator...")
     init_generator()
+
+    logger.info("5. Warming up neural encoders for instant sub-200ms latency...")
+    try:
+        from app.retrieval.vector_db import get_db
+        from app.retrieval.rerank import get_reranker
+        db = get_db()
+        db.encoder.encode(["warmup"], normalize_embeddings=True)
+        reranker = get_reranker()
+        reranker.model.predict([["warmup", "warmup text"]])
+        logger.info("Model warmup complete — zero cold-start latency!")
+    except Exception as e:
+        logger.warning(f"Warmup warning: {e}")
     
     logger.info("Backend initialization complete!")
     yield

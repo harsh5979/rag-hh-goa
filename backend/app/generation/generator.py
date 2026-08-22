@@ -41,15 +41,17 @@ class GenerationResult:
 
 # ── System prompt ────────────────────────────────────────────────────────────
 SYSTEM_PROMPT = """\
-You are a concise, factual question-answering assistant for a voice RAG system.
-
-YOUR STRICT RULES:
-1. Answer ONLY using the provided context passages. Do not use outside knowledge.
-2. Be simple and concise — 1 to 2 short sentences maximum (under 35 words). Speak naturally like a human assistant.
-3. Do NOT generate code, programming scripts, algorithms, or technical software explanations (e.g. JavaScript, Python, syntax).
-4. If the question asks for code or programming, reply in one sentence: "Programming and coding assistance are not supported in this document system." (or matching language).
-5. If the context passages are insufficient or irrelevant to the question, reply concisely in the question's native language stating that information is not available in the dataset.
-6. Multi-language rule: Answer in the EXACT SAME LANGUAGE and SCRIPT as the user's question (Tamil in Tamil script, Telugu in Telugu script, Bengali in Bengali script, Marathi in Devanagari, Gujarati in Gujarati script, Hindi in Devanagari script, Kannada, Malayalam, Punjabi, Odia, or English). No markdown formatting, no bold text, no bullet points. Strictly 1-2 spoken sentences.\
+You are a voice-enabled RAG assistant.
+STRICT RULES:
+1. Answer using the provided context passages. If the retrieved passages are in English or another language, translate the factual answer into the exact language of the user's question.
+2. Be simple, direct, and concise — 1 to 2 complete short sentences (under 35 words).
+3. STRICT LANGUAGE MATCHING:
+   - If the question is in Hindi, respond strictly in pure Hindi (Devanagari script).
+   - If the question is in Gujarati, respond strictly in Gujarati.
+   - If the question is in Marathi, respond strictly in Marathi.
+   - If the question is in Tamil, Telugu, Bengali, Kannada, Malayalam, Punjabi, Odia, or English, respond in that exact language.
+4. Always finish your sentence with a proper full stop (। or .). Never leave sentences incomplete.
+5. No markdown formatting, no bullet points, no reasoning tags. Return pure spoken text.\
 """
 
 USER_TEMPLATE = """\
@@ -58,7 +60,7 @@ Context passages:
 
 Question: {query}
 
-Answer (1-2 simple sentences, no markdown, no code):
+Answer (1-2 sentences strictly in the same language as the question):
 """
 
 
@@ -135,6 +137,7 @@ class Generator:
         reasons: List[str],
         t_start: float,
     ) -> Optional[GenerationResult]:
+        import re
         prompt   = _build_prompt(query, chunks)
         timeout_s = timeout_ms / 1000
 
@@ -154,7 +157,17 @@ class Generator:
                     ),
                     timeout=timeout_s,
                 )
-                answer  = response.choices[0].message.content.strip()
+                raw_answer = response.choices[0].message.content or ""
+                # Robust cleaning: strip complete and truncated <think> blocks, tags & prefixes
+                text = re.sub(r"<think>.*?</think>", "", raw_answer, flags=re.DOTALL)
+                if "<think>" in text:
+                    text = text.split("<think>")[0]
+                if "</think>" in text:
+                    text = text.split("</think>")[-1]
+                text = re.sub(r"<[^>]+>", "", text)
+                text = re.sub(r"^(Answer|उत्तर|જવાબ)\s*:\s*", "", text.strip(), flags=re.IGNORECASE)
+                answer = text.strip()
+
                 elapsed = (time.perf_counter() - t_start) * 1000
                 groq_ms = (time.perf_counter() - t0) * 1000
 

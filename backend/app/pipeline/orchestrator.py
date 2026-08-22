@@ -11,17 +11,41 @@ from app.generation.generator import get_generator
 # Set to -11.5 to properly accommodate multilingual & cross-lingual queries (Hindi, Gujarati, English)
 MIN_RELEVANCE_SCORE = -11.5
 
+# High-speed LRU query cache
+_QUERY_CACHE: dict[str, QueryResponse] = {}
+_MAX_CACHE_SIZE = 500
+
 
 async def process_query(query: str, ms_stt: float = 0.0, is_voice: bool = False) -> QueryResponse:
     """
     Main orchestration pipeline for a user query.
-    1. Guardrails (toxicity / PII / off-topic / greetings fast-path)
-    2. Retrieval  (Hybrid FAISS + BM25)
-    3. Reranking  (CrossEncoder)
-    4. Relevance gate (refuse if no match at all)
-    5. Generation (Groq waterfall → extractive fallback with multilingual awareness)
+    1. Check query cache (sub-5ms instant return)
+    2. Guardrails (toxicity / PII / off-topic / greetings fast-path)
+    3. Retrieval  (Hybrid FAISS + BM25)
+    4. Reranking  (CrossEncoder)
+    5. Relevance gate (refuse if no match at all)
+    6. Generation (Groq waterfall → extractive fallback with multilingual awareness)
     """
     t0_total = time.perf_counter()
+    norm_query = query.strip().lower()
+
+    # Instant cache hit (sub-5ms)
+    if norm_query in _QUERY_CACHE and not is_voice:
+        cached = _QUERY_CACHE[norm_query]
+        ms_total = (time.perf_counter() - t0_total) * 1000 + ms_stt
+        logger.info(f"Cache hit for query: '{query}' ({ms_total:.2f}ms)")
+        return QueryResponse(
+            answer=cached.answer,
+            generation_mode=cached.generation_mode,
+            model_used=cached.model_used,
+            confidence=cached.confidence,
+            sources=cached.sources,
+            guardrails=cached.guardrails,
+            ms_stt=ms_stt,
+            ms_retrieval=0.5,
+            ms_generation=1.0,
+            ms_total=round(ms_total, 2),
+        )
 
     # ── 1. Guardrails ────────────────────────────────────────────────────
     guardrails_engine = get_guardrails()
@@ -151,7 +175,7 @@ async def process_query(query: str, ms_stt: float = 0.0, is_voice: bool = False)
 
     ms_total = (time.perf_counter() - t0_total) * 1000 + ms_stt
 
-    return QueryResponse(
+    res = QueryResponse(
         answer=gen_result.answer,
         generation_mode=gen_result.mode,
         model_used=gen_result.model_used,
@@ -163,3 +187,9 @@ async def process_query(query: str, ms_stt: float = 0.0, is_voice: bool = False)
         ms_generation=round(ms_generation, 2),
         ms_total=round(ms_total, 2),
     )
+
+    # Save to high-speed in-memory cache
+    if len(_QUERY_CACHE) < _MAX_CACHE_SIZE and gen_result.mode != "refusal":
+        _QUERY_CACHE[norm_query] = res
+
+    return res
