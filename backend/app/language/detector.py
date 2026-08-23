@@ -156,12 +156,29 @@ class LanguageDetector:
 
         return best_lang
 
+    # English meta-inquiry patterns (e.g., "how to say tame mane gamo chho", "what does kem chho mean")
+    _ENGLISH_INQUIRY_RE = re.compile(
+        r"\b(how\s+(to|do\s+you|can\s+i|would\s+you)\s+(say|pronounce|write|spell|translate)|"
+        r"what\s+(is\s+the\s+meaning\s+of|does\s+.*\s+mean|is\s+.*\s+in\s+english|does\s+that\s+mean)|"
+        r"meaning\s+of|translate\s+.*(\s+in|\s+to|\s+into)|"
+        r"tell\s+me\s+(what|how|why)|explain\s+(the\s+meaning\s+of|what|how)|"
+        r"what\s+is\s+the\s+difference\s+between)\b",
+        re.IGNORECASE
+    )
+
     def detect_latin_indic_language(self, text: str) -> str:
         """
         Weighted Morphological & Sub-word Suffix Engine for Romanized text.
         Root match = 3.0 weight, Suffix match = 1.5 weight.
+        Includes fast English inquiry override to prevent false positives on phrases
+        like 'how to say tame mane gamo chho'.
         """
         cleaned = text.lower().strip()
+
+        # Check English inquiry intent first (< 0.005 ms)
+        if self._ENGLISH_INQUIRY_RE.search(cleaned):
+            return "en-IN"
+
         tokens = re.findall(r"\b[a-zA-Z]+\b", cleaned)
         if not tokens:
             return "en-IN"

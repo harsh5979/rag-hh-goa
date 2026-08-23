@@ -1208,6 +1208,20 @@ export default function VoiceRagPage() {
                         }}>
                           ● SPEECH ACTIVE
                         </span>
+                      ) : voice.silenceCountdown !== null ? (
+                        <span style={{
+                          fontSize: 10,
+                          fontFamily: "monospace",
+                          fontWeight: 800,
+                          color: "#38BDF8",
+                          background: "rgba(56, 189, 248, 0.2)",
+                          border: "1px solid rgba(56, 189, 248, 0.5)",
+                          padding: "1px 6px",
+                          borderRadius: 4,
+                          letterSpacing: 0.5,
+                        }} className="animate-pulse">
+                          ⚡ AUTO-SUBMITTING IN {voice.silenceCountdown}s...
+                        </span>
                       ) : (
                         <span style={{
                           fontSize: 10,
@@ -1218,12 +1232,9 @@ export default function VoiceRagPage() {
                           padding: "1px 6px",
                           borderRadius: 4,
                         }}>
-                          LISTENING
+                          LISTENING...
                         </span>
                       )}
-                      <span className="hidden sm:inline" style={{ fontSize: 11, color: T.textSec, fontStyle: "italic" }}>
-                        Auto-detects speech & stops automatically
-                      </span>
                     </div>
                   </div>
 

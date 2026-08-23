@@ -35,8 +35,8 @@ function detectScriptLanguage(
 export function useVoiceRag(config: VoiceConfig = {}) {
   const {
     language: initialLanguage = "en-IN",
-    silenceThresholdMs = 1800,
-    energyThreshold = 3.5,
+    silenceThresholdMs = 650,
+    energyThreshold = 18,
     autoSpeak = true,
     speaker = "anushka",
     onTranscript,
@@ -261,6 +261,21 @@ export function useVoiceRag(config: VoiceConfig = {}) {
     return finalResponse;
   }, [updateState, addResult, onResponse, autoSpeak, speakAnswer, onError, onTranscript]);
 
+  // ── cancelListening (Silent Auto-Off when user does not speak) ────────────
+  const cancelListening = useCallback(() => {
+    isStoppingRef.current = true;
+    try { speechRecognitionRef.current?.stop(); } catch {}
+    speechRecognitionRef.current = null;
+    vadRef.current?.stop();
+    captureRef.current?.stop().catch(() => {});
+    wsClientRef.current?.close();
+    setSilenceCountdown(null);
+    setSpeechDetected(false);
+    setAudioLevel(0);
+    updateState("idle");
+    isStoppingRef.current = false;
+  }, [updateState]);
+
   // ── startListening ────────────────────────────────────────────────────────
   const startListening = useCallback(async () => {
     isStoppingRef.current = false;
@@ -282,7 +297,7 @@ export function useVoiceRag(config: VoiceConfig = {}) {
     try {
       // ★ STEP 2: Request microphone (AudioCapture)
       const capture = new AudioCapture({
-        chunkDurationMs: 250,
+        chunkDurationMs: 150,
         onChunk: (chunk) => wsClientRef.current?.sendAudioChunk(chunk),
       });
       captureRef.current = capture;
@@ -298,8 +313,18 @@ export function useVoiceRag(config: VoiceConfig = {}) {
         silenceThresholdMs,
         onAudioLevel: (lvl) => setAudioLevel(lvl),
         onSpeechStart: () => setSpeechDetected(true),
+        onSilenceProgress: (remainingMs, ratio) => {
+          if (ratio > 0.3) {
+            setSilenceCountdown(Math.round(remainingMs / 100) / 10);
+          } else {
+            setSilenceCountdown(null);
+          }
+        },
         onSilenceTimeout: () => {
           if (!isStoppingRef.current) stopListening();
+        },
+        onNoSpeechTimeout: () => {
+          if (!isStoppingRef.current) cancelListening();
         },
       });
       vadRef.current = vad;

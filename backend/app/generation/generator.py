@@ -46,10 +46,11 @@ STRICT RULES:
 1. Answer factually using the provided context passages whenever relevant. If the context does not explicitly cover the question, answer accurately and directly from factual knowledge.
 2. Be simple, direct, and conversational — 1 to 2 complete short sentences (under 35 words).
 3. NEVER say phrases like "The provided passages do not contain information about MSMARCO". Always provide the actual answer directly.
-4. STRICT LANGUAGE MATCHING:
-   - If the question is in Hindi, respond strictly in pure Hindi (Devanagari script).
-   - If the question is in Gujarati, respond strictly in Gujarati.
-   - If the question is in Marathi, respond strictly in Marathi.
+4. STRICT LANGUAGE & INTENT MATCHING:
+   - If the user asks in English about an Indic phrase or translation (e.g. "how to say tame mane gamo chho" or "what does kem chho mean"), answer directly and accurately in English.
+   - If the question is in native or conversational Hindi, respond strictly in pure Hindi (Devanagari script).
+   - If the question is in native or conversational Gujarati, respond strictly in Gujarati.
+   - If the question is in native or conversational Marathi, respond strictly in Marathi.
    - If the question is in Tamil, Telugu, Bengali, Kannada, Malayalam, Punjabi, Odia, or English, respond in that exact language.
 5. Always finish your sentence with a proper full stop (। or .). Never leave sentences incomplete.
 6. No markdown formatting, no bullet points, no reasoning tags. Return pure spoken text.\
@@ -61,7 +62,7 @@ Context passages:
 
 Question: {query}
 
-Answer (1-2 sentences strictly in the same language as the question):
+Answer (1-2 sentences strictly fulfilling the question's language and intent):
 """
 
 

@@ -70,8 +70,16 @@ export function detectLanguageClient(text: string, fallback: IndicLanguageCode =
   const scriptLang = detectScriptFromUnicode(text);
   if (scriptLang) return scriptLang;
 
+  const lowerText = text.toLowerCase().trim();
+
+  // English meta-inquiry override (e.g. "how to say tame mane gamo chho", "what is the meaning of kem chho")
+  const englishInquiryPattern = /\b(how\s+(to|do\s+you|can\s+i|would\s+you)\s+(say|pronounce|write|spell|translate)|what\s+(is\s+the\s+meaning\s+of|does\s+.*\s+mean|is\s+.*\s+in\s+english|does\s+that\s+mean)|meaning\s+of|translate\s+.*(\s+in|\s+to|\s+into)|tell\s+me\s+(what|how|why)|explain\s+(the\s+meaning\s+of|what|how)|what\s+is\s+the\s+difference\s+between)\b/i;
+  if (englishInquiryPattern.test(lowerText)) {
+    return "en-IN";
+  }
+
   // 2. Romanized Token Scoring (4 Fast Core Auto-Detect Targets)
-  const tokens = text.toLowerCase().match(/[a-zA-Z]+/g) || [];
+  const tokens = lowerText.match(/[a-zA-Z]+/g) || [];
   if (tokens.length === 0) return fallback;
 
   let hiScore = 0;

@@ -1,39 +1,41 @@
-/**
- * vadEngine.ts
- *
- * Single Responsibility: Voice Activity Detection (VAD) using frequency-domain
- * energy analysis via the Web Audio API AnalyserNode.
- *
- * - Owns its OWN AudioContext — created close to the user-gesture call path
- * - NO microphone access (receives a MediaStream from AudioCapture)
- * - NO recording
- * - NO network calls
- * - Works identically on all browsers and devices
- */
-
 export interface VADEngineOptions {
   /** FFT frequency bins used for energy analysis. Power of 2. Default: 128. */
   fftSize?: number;
-  /** Average energy level (0-255) required to consider audio as speech. Default: 3.5. */
+  /** Static base energy threshold (0-255) fallback. Default: 18. */
   energyThreshold?: number;
   /**
-   * How long (ms) the signal must stay below energyThreshold after speech was
-   * detected before onSilenceTimeout fires. Default: 1800.
+   * How long (ms) the signal must stay below silence threshold after speech was
+   * detected before onSilenceTimeout fires. Default: 650 (Gemini-grade snappy cutoff).
    */
   silenceThresholdMs?: number;
   /**
    * Minimum total recording time (ms) before silence timeout can fire.
-   * Prevents instant cut-offs when the user just tapped. Default: 1400.
+   * Prevents instant cut-offs when the user just tapped. Default: 400.
    */
   minRecordingMs?: number;
-  /** VAD polling interval in ms. Default: 75. */
+  /**
+   * Maximum total recording duration (ms) before auto-finalizing and submitting.
+   * Prevents microphone staying open indefinitely. Default: 12000 (12 seconds).
+   */
+  maxRecordingMs?: number;
+  /**
+   * How long (ms) to wait for the user to start speaking before auto-cancelling the mic.
+   * Prevents microphone staying active indefinitely if the user tapped mic and walked away.
+   * Default: 4000 (4 seconds).
+   */
+  noSpeechTimeoutMs?: number;
+  /** VAD polling interval in ms. Default: 40 (25 ticks/sec for sub-50ms responsiveness). */
   pollIntervalMs?: number;
   /** Called on every VAD tick with the current average energy level (0-255). */
   onAudioLevel?: (level: number) => void;
   /** Called when speech energy rises above threshold. */
   onSpeechStart?: () => void;
+  /** Called on every tick during silence with remaining time until auto-submit. */
+  onSilenceProgress?: (remainingMs: number, ratio: number) => void;
   /** Called when silence timeout fires after speech was detected. */
   onSilenceTimeout?: () => void;
+  /** Called when the user never spoke within noSpeechTimeoutMs after opening mic. */
+  onNoSpeechTimeout?: () => void;
 }
 
 export class VADEngine {
@@ -46,9 +48,17 @@ export class VADEngine {
   private startTs = 0;
   private running = false;
 
-  private readonly energyThreshold: number;
+  // Adaptive Noise Floor Calibration
+  private calibrationSamples: number[] = [];
+  private ambientNoiseFloor = 10;
+  private isCalibrated = false;
+  private effectiveSpeechThreshold = 18;
+  private effectiveSilenceThreshold = 12;
+
   private readonly silenceThresholdMs: number;
   private readonly minRecordingMs: number;
+  private readonly maxRecordingMs: number;
+  private readonly noSpeechTimeoutMs: number;
   private readonly pollIntervalMs: number;
   private readonly fftSize: number;
   private readonly opts: VADEngineOptions;
@@ -56,10 +66,13 @@ export class VADEngine {
   constructor(opts: VADEngineOptions = {}) {
     this.opts = opts;
     this.fftSize = opts.fftSize ?? 128;
-    this.energyThreshold = opts.energyThreshold ?? 3.5;
-    this.silenceThresholdMs = opts.silenceThresholdMs ?? 1800;
-    this.minRecordingMs = opts.minRecordingMs ?? 1400;
-    this.pollIntervalMs = opts.pollIntervalMs ?? 75;
+    this.silenceThresholdMs = opts.silenceThresholdMs ?? 650;
+    this.minRecordingMs = opts.minRecordingMs ?? 400;
+    this.maxRecordingMs = opts.maxRecordingMs ?? 12000;
+    this.noSpeechTimeoutMs = opts.noSpeechTimeoutMs ?? 4000;
+    this.pollIntervalMs = opts.pollIntervalMs ?? 40;
+    this.effectiveSpeechThreshold = opts.energyThreshold ?? 18;
+    this.effectiveSilenceThreshold = 12;
   }
 
   /**
@@ -86,7 +99,7 @@ export class VADEngine {
     const source = this.audioCtx.createMediaStreamSource(stream);
     const analyser = this.audioCtx.createAnalyser();
     analyser.fftSize = this.fftSize;
-    analyser.smoothingTimeConstant = 0.4;
+    analyser.smoothingTimeConstant = 0.35;
     source.connect(analyser);
 
     this.analyser = analyser;
@@ -94,6 +107,8 @@ export class VADEngine {
     this.hasSpoken = false;
     this.lastSpeechTs = 0;
     this.startTs = Date.now();
+    this.calibrationSamples = [];
+    this.isCalibrated = false;
     this.running = true;
 
     this._startLoop();
@@ -123,8 +138,7 @@ export class VADEngine {
     this.vadInterval = setInterval(() => {
       if (!this.running || !this.analyser || !this.dataArray) return;
 
-      // If AudioContext was suspended mid-recording (can happen on some Android Chrome
-      // versions), attempt to resume silently.
+      // If AudioContext was suspended mid-recording, resume silently.
       if (this.audioCtx?.state === "suspended") {
         this.audioCtx.resume().catch(() => {});
         return;
@@ -140,16 +154,52 @@ export class VADEngine {
       this.opts.onAudioLevel?.(Math.round(avg));
 
       const now = Date.now();
+      const totalMs = now - this.startTs;
 
-      if (avg >= this.energyThreshold) {
+      // ── Step 1: Dynamic Ambient Noise Calibration (First 280ms) ───────────
+      if (!this.isCalibrated) {
+        this.calibrationSamples.push(avg);
+        if (this.calibrationSamples.length >= 7) {
+          const ambientSum = this.calibrationSamples.reduce((a, b) => a + b, 0);
+          this.ambientNoiseFloor = ambientSum / this.calibrationSamples.length;
+          // Set dynamic speech threshold relative to measured room noise
+          this.effectiveSpeechThreshold = Math.max(16, this.ambientNoiseFloor + 9);
+          this.effectiveSilenceThreshold = Math.max(10, this.ambientNoiseFloor + 4);
+          this.isCalibrated = true;
+        }
+      }
+
+      // ── Step 2: Hard-Cap Maximum Duration (12s Safety Guard) ──────────────
+      if (totalMs >= this.maxRecordingMs) {
+        this.running = false;
+        if (this.vadInterval) {
+          clearInterval(this.vadInterval);
+          this.vadInterval = null;
+        }
+        if (this.hasSpoken) {
+          this.opts.onSilenceTimeout?.();
+        } else {
+          this.opts.onNoSpeechTimeout?.();
+        }
+        return;
+      }
+
+      // ── Step 3: Active Speech Detection ──────────────────────────────────
+      if (avg >= this.effectiveSpeechThreshold) {
         if (!this.hasSpoken) {
           this.opts.onSpeechStart?.();
         }
         this.hasSpoken = true;
         this.lastSpeechTs = now;
-      } else if (this.hasSpoken && this.lastSpeechTs > 0) {
+        this.opts.onSilenceProgress?.(this.silenceThresholdMs, 0);
+      }
+      // ── Step 4: Silence Detection After Speech ────────────────────────────
+      else if (this.hasSpoken && this.lastSpeechTs > 0) {
         const silenceMs = now - this.lastSpeechTs;
-        const totalMs = now - this.startTs;
+        const remainingMs = Math.max(0, this.silenceThresholdMs - silenceMs);
+        const ratio = Math.min(1, silenceMs / this.silenceThresholdMs);
+        this.opts.onSilenceProgress?.(remainingMs, ratio);
+
         if (silenceMs >= this.silenceThresholdMs && totalMs >= this.minRecordingMs) {
           this.running = false;
           if (this.vadInterval) {
@@ -157,6 +207,17 @@ export class VADEngine {
             this.vadInterval = null;
           }
           this.opts.onSilenceTimeout?.();
+        }
+      }
+      // ── Step 5: Initial No-Speech Inactivity Timeout (4s) ─────────────────
+      else if (!this.hasSpoken) {
+        if (totalMs >= this.noSpeechTimeoutMs) {
+          this.running = false;
+          if (this.vadInterval) {
+            clearInterval(this.vadInterval);
+            this.vadInterval = null;
+          }
+          this.opts.onNoSpeechTimeout?.();
         }
       }
     }, this.pollIntervalMs);
