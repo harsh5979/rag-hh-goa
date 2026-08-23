@@ -2,19 +2,35 @@
 
 import { useState, useRef, useCallback, useEffect } from "react";
 import {
-  AudioStreamer,
   VoiceWebSocketClient,
-  VoicePlayer,
   type IndicLanguageCode,
   type VoiceState,
   type VoiceConfig,
   type VoiceError,
 } from "@/lib/voice";
-import { detectDeviceCategory } from "@/lib/voice/mimeHelper";
+import { AudioCapture } from "@/lib/voice/audioCapture";
+import { VADEngine } from "@/lib/voice/vadEngine";
+import { TTSService } from "@/lib/voice/ttsService";
+import { submitSTT, STTError } from "@/lib/voice/sttService";
 import type { PipelineResponse } from "@/lib/api/types";
-import { audioApi } from "@/lib/api/audioApi";
-import { queryApi } from "@/lib/api/queryApi";
 import { useAnalyticsStore } from "@/store/analyticsStore";
+
+// ─── Script-based language detection (no network, no external dep) ─────────
+function detectScriptLanguage(
+  text: string,
+  fallbackLang: IndicLanguageCode = "en-IN"
+): IndicLanguageCode {
+  if (/[\u0900-\u097F]/.test(text)) return "hi-IN"; // Hindi / Marathi
+  if (/[\u0A80-\u0AFF]/.test(text)) return "gu-IN"; // Gujarati
+  if (/[\u0B80-\u0BFF]/.test(text)) return "ta-IN"; // Tamil
+  if (/[\u0C00-\u0C7F]/.test(text)) return "te-IN"; // Telugu
+  if (/[\u0980-\u09FF]/.test(text)) return "bn-IN"; // Bengali
+  if (/[\u0C80-\u0CFF]/.test(text)) return "kn-IN"; // Kannada
+  if (/[\u0D00-\u0D7F]/.test(text)) return "ml-IN"; // Malayalam
+  if (/[\u0A00-\u0A7F]/.test(text)) return "pa-IN"; // Punjabi
+  if (/[\u0B00-\u0B7F]/.test(text)) return "or-IN"; // Odia
+  return fallbackLang;
+}
 
 export function useVoiceRag(config: VoiceConfig = {}) {
   const {
@@ -29,6 +45,7 @@ export function useVoiceRag(config: VoiceConfig = {}) {
     onStateChange,
   } = config;
 
+  // ── UI state ──────────────────────────────────────────────────────────────
   const [state, setState] = useState<VoiceState>("idle");
   const [language, setLanguageState] = useState<IndicLanguageCode>(initialLanguage);
   const [liveTranscript, setLiveTranscript] = useState<string>("");
@@ -44,14 +61,16 @@ export function useVoiceRag(config: VoiceConfig = {}) {
 
   const { addResult } = useAnalyticsStore();
 
-  // Core service instances in refs to avoid re-instantiation across renders
-  const streamerRef = useRef<AudioStreamer | null>(null);
+  // ── Service refs (instantiated once, never re-created on render) ──────────
+  const captureRef = useRef<AudioCapture | null>(null);
+  const vadRef = useRef<VADEngine | null>(null);
+  const ttsRef = useRef<TTSService | null>(null);
   const wsClientRef = useRef<VoiceWebSocketClient | null>(null);
-  const playerRef = useRef<VoicePlayer | null>(null);
   const speechRecognitionRef = useRef<any>(null);
   const isStoppingRef = useRef<boolean>(false);
   const transcriptRef = useRef<string>("");
   const currentLanguageRef = useRef<IndicLanguageCode>(language);
+  const startTimeRef = useRef<number>(0);
 
   currentLanguageRef.current = language;
 
@@ -71,45 +90,43 @@ export function useVoiceRag(config: VoiceConfig = {}) {
     }
   }, []);
 
-  // Initialize Voice Player once
+  // ── Initialise TTSService once ─────────────────────────────────────────────
   useEffect(() => {
-    const player = new VoicePlayer({
-      onPlayStart: () => {
-        updateState("speaking");
-      },
-      onProgress: (prog) => {
-        setSpeechProgress(prog);
-      },
+    const tts = new TTSService({
+      speaker,
+      onPlayStart: () => updateState("speaking"),
+      onProgress: (p) => setSpeechProgress(p),
       onPlayEnd: () => {
         updateState("idle");
         setSpeechProgress(1);
       },
-      onError: (err) => {
-        console.warn("[useVoiceRag] Playback warning:", err);
-        updateState("idle");
-      },
     });
-
-    playerRef.current = player;
-
+    ttsRef.current = tts;
     return () => {
-      player.stop();
-      playerRef.current = null;
+      tts.destroy();
+      ttsRef.current = null;
     };
-  }, [updateState]);
+  }, [updateState, speaker]);
 
-  // Audio Context unlocker for mobile browsers
-  const unlockAudio = useCallback(async () => {
-    if (playerRef.current) {
-      await playerRef.current.unlockAudio();
-    }
+  // ── Teardown on unmount ───────────────────────────────────────────────────
+  useEffect(() => {
+    return () => {
+      captureRef.current?.release();
+      vadRef.current?.stop();
+      wsClientRef.current?.close();
+      ttsRef.current?.destroy();
+    };
   }, []);
 
-  // Stop currently playing speech
+  // ── unlockAudio: call on user gesture BEFORE any await ───────────────────
+  // This keeps the AudioContext creation inside the gesture call stack on iOS/Android.
+  const unlockAudio = useCallback(async () => {
+    await ttsRef.current?.unlock();
+  }, []);
+
+  // ── stopSpeaking ─────────────────────────────────────────────────────────
   const stopSpeaking = useCallback(() => {
-    if (playerRef.current) {
-      playerRef.current.stop();
-    }
+    ttsRef.current?.stop();
     if (typeof window !== "undefined" && "speechSynthesis" in window) {
       window.speechSynthesis.cancel();
     }
@@ -117,68 +134,32 @@ export function useVoiceRag(config: VoiceConfig = {}) {
     setSpeechProgress(0);
   }, [updateState]);
 
-// Auto-detect Indic script from text content
-function detectScriptLanguage(text: string, fallbackLang: IndicLanguageCode = "en-IN"): IndicLanguageCode {
-  if (/[\u0900-\u097F]/.test(text)) return "hi-IN"; // Hindi / Marathi
-  if (/[\u0A80-\u0AFF]/.test(text)) return "gu-IN"; // Gujarati
-  if (/[\u0B80-\u0BFF]/.test(text)) return "ta-IN"; // Tamil
-  if (/[\u0C00-\u0C7F]/.test(text)) return "te-IN"; // Telugu
-  if (/[\u0980-\u09FF]/.test(text)) return "bn-IN"; // Bengali
-  if (/[\u0C80-\u0CFF]/.test(text)) return "kn-IN"; // Kannada
-  if (/[\u0D00-\u0D7F]/.test(text)) return "ml-IN"; // Malayalam
-  if (/[\u0A00-\u0A7F]/.test(text)) return "pa-IN"; // Punjabi
-  if (/[\u0B00-\u0B7F]/.test(text)) return "or-IN"; // Odia
-  return fallbackLang || "en-IN";
-}
-
-  // Sarvam AI Neural Studio Voice synthesis with browser fallback
+  // ── speakAnswer ───────────────────────────────────────────────────────────
   const speakAnswer = useCallback(
-    async (textToSpeak: string, langCode: IndicLanguageCode = "en-IN") => {
-      if (!textToSpeak || !textToSpeak.trim()) return;
-
+    async (text: string, langCode: IndicLanguageCode = "en-IN") => {
+      if (!text?.trim()) return;
       stopSpeaking();
-      const detectedLang = detectScriptLanguage(textToSpeak, langCode);
+      const detectedLang = detectScriptLanguage(text, langCode);
+      updateState("speaking");
 
+      // 1. Sarvam TTS via TTSService
       try {
-        updateState("speaking");
-        // 1. Play studio neural voice via Sarvam AI TTS
-        const ttsRes = await audioApi.sendTTS(textToSpeak, detectedLang);
-        if (ttsRes?.audio_base64 && playerRef.current) {
-          await playerRef.current.playBase64(ttsRes.audio_base64);
-          return;
-        }
+        await ttsRef.current?.speak(text, detectedLang);
+        return;
       } catch (err) {
-        console.warn("[useVoiceRag] Sarvam TTS fallback to browser speech:", err);
+        console.warn("[useVoiceRag] TTS failed, falling back to browser synthesis:", err);
       }
 
-      // 2. Fallback to browser SpeechSynthesis
+      // 2. Browser SpeechSynthesis fallback
       if (typeof window !== "undefined" && "speechSynthesis" in window) {
-        updateState("speaking");
-        const utterance = new SpeechSynthesisUtterance(textToSpeak);
+        const utterance = new SpeechSynthesisUtterance(text);
         utterance.lang = detectedLang;
         utterance.rate = 1.0;
-
         const voices = window.speechSynthesis.getVoices();
-        const langPrefix = detectedLang.split("-")[0];
-        const match = voices.find((v) => v.lang.startsWith(langPrefix));
-        if (match) {
-          utterance.voice = match;
-        }
-
-        utterance.onboundary = (e) => {
-          if (textToSpeak.length > 0 && e.charIndex !== undefined) {
-            setSpeechProgress(Math.min(1, e.charIndex / textToSpeak.length));
-          }
-        };
-
-        utterance.onend = () => {
-          updateState("idle");
-          setSpeechProgress(1);
-        };
-        utterance.onerror = () => {
-          updateState("idle");
-        };
-
+        const match = voices.find((v) => v.lang.startsWith(detectedLang.split("-")[0]));
+        if (match) utterance.voice = match;
+        utterance.onend = () => { updateState("idle"); setSpeechProgress(1); };
+        utterance.onerror = () => updateState("idle");
         window.speechSynthesis.speak(utterance);
       } else {
         updateState("idle");
@@ -187,66 +168,75 @@ function detectScriptLanguage(text: string, fallbackLang: IndicLanguageCode = "e
     [stopSpeaking, updateState]
   );
 
-  // Stop listening and process query
+  // ── stopListening ─────────────────────────────────────────────────────────
   const stopListening = useCallback(async (): Promise<PipelineResponse | null> => {
     if (isStoppingRef.current) return null;
     isStoppingRef.current = true;
 
-    // Stop speech recognition
-    if (speechRecognitionRef.current) {
-      try {
-        speechRecognitionRef.current.stop();
-      } catch {}
-      speechRecognitionRef.current = null;
-    }
+    // Stop optional browser SpeechRecognition
+    try { speechRecognitionRef.current?.stop(); } catch {}
+    speechRecognitionRef.current = null;
 
     setSilenceCountdown(null);
     setSpeechDetected(false);
     setAudioLevel(0);
     updateState("processing");
 
+    const durationMs = Date.now() - startTimeRef.current;
     let finalResponse: PipelineResponse | null = null;
 
     try {
-      // Stop streamer & release microphone tracks 100%
-      const streamResult = streamerRef.current
-        ? await streamerRef.current.stopStreaming()
-        : { blob: null, durationMs: 0 };
+      // 1. Stop VAD + recording
+      vadRef.current?.stop();
+      const blob = await captureRef.current?.stop() ?? null;
 
-      const audioBlob = streamResult.blob;
+      // 2. Signal WebSocket end
       const currentTranscript = transcriptRef.current;
+      wsClientRef.current?.sendEnd(currentTranscript);
 
-      // Close WebSocket stream signal
-      if (wsClientRef.current) {
-        wsClientRef.current.sendEnd(currentTranscript);
-      }
+      // 3. Submit to STT+RAG via sttService
+      const lang =
+        currentLanguageRef.current === "auto" ? "unknown" : currentLanguageRef.current;
 
-      // If we have an audio blob, process via API pipeline
-      const apiLang = currentLanguageRef.current === "auto" ? "unknown" : currentLanguageRef.current;
-      if (audioBlob && audioBlob.size > 500) {
-        finalResponse = await audioApi.sendAudioQuery(audioBlob, currentTranscript, apiLang);
-      } else if (currentTranscript && currentTranscript.trim()) {
-        finalResponse = await queryApi.sendTextQuery(currentTranscript.trim());
-      }
+      try {
+        const sttResult = await submitSTT({
+          blob,
+          language: lang,
+          fallbackTranscript: currentTranscript,
+        });
 
-      if (finalResponse) {
-        // High-accuracy transcript from Sarvam STT in native Indic script
-        const bestTranscript = finalResponse.transcript || finalResponse.query || currentTranscript;
+        finalResponse = sttResult.response;
+
+        // Update transcript display
+        const bestTranscript = sttResult.transcript || currentTranscript;
         if (bestTranscript) {
           finalResponse.transcript = bestTranscript;
           setLiveTranscript(bestTranscript);
           transcriptRef.current = bestTranscript;
           onTranscript?.(bestTranscript, true);
         }
+      } catch (sttErr) {
+        if (sttErr instanceof STTError && sttErr.code === "BLOB_TOO_SMALL") {
+          // Nothing to submit — go idle without error
+          updateState("idle");
+          isStoppingRef.current = false;
+          return null;
+        }
+        throw sttErr;
+      }
 
+      if (finalResponse) {
         setResultState(finalResponse);
         setResponseAnswer(finalResponse.answer || "");
-        setLatencyMs(finalResponse.timings?.total_ms || streamResult.durationMs);
-        addResult(finalResponse, bestTranscript || "[Voice Query]");
+        setLatencyMs(finalResponse.timings?.total_ms || durationMs);
+        addResult(finalResponse, finalResponse.transcript || "[Voice Query]");
         onResponse?.(finalResponse);
 
         if (autoSpeak && finalResponse.answer) {
-          await speakAnswer(finalResponse.answer, (finalResponse.language as IndicLanguageCode) || currentLanguageRef.current);
+          await speakAnswer(
+            finalResponse.answer,
+            (finalResponse.language as IndicLanguageCode) || currentLanguageRef.current
+          );
         } else {
           updateState("idle");
         }
@@ -254,7 +244,7 @@ function detectScriptLanguage(text: string, fallbackLang: IndicLanguageCode = "e
         updateState("idle");
       }
     } catch (err: unknown) {
-      console.error("[useVoiceRag] Query processing error:", err);
+      console.error("[useVoiceRag] stopListening error:", err);
       const voiceErr: VoiceError = {
         code: "RAG_FAILED",
         message: (err as { message?: string })?.message || "Failed to process voice query.",
@@ -265,15 +255,13 @@ function detectScriptLanguage(text: string, fallbackLang: IndicLanguageCode = "e
       updateState("error");
     } finally {
       isStoppingRef.current = false;
-      if (wsClientRef.current) {
-        wsClientRef.current.close();
-      }
+      wsClientRef.current?.close();
     }
 
     return finalResponse;
-  }, [updateState, addResult, onResponse, autoSpeak, speakAnswer, onError]);
+  }, [updateState, addResult, onResponse, autoSpeak, speakAnswer, onError, onTranscript]);
 
-  // Start listening with zero hardware collisions
+  // ── startListening ────────────────────────────────────────────────────────
   const startListening = useCallback(async () => {
     isStoppingRef.current = false;
     setError(null);
@@ -284,14 +272,95 @@ function detectScriptLanguage(text: string, fallbackLang: IndicLanguageCode = "e
     setSilenceCountdown(null);
     setSpeechDetected(false);
 
+    // ★ STEP 1: Unlock TTS AudioContext IN THIS CALL (still within user-gesture scope).
+    //   This keeps iOS/Android AudioContext activation inside the gesture call stack
+    //   BEFORE any await that could expire the gesture context window.
     await unlockAudio();
     stopSpeaking();
     updateState("requesting_permission");
 
     try {
-      // 1. Initialize WebSocket Client for streaming frames
+      // ★ STEP 2: Request microphone (AudioCapture)
+      const capture = new AudioCapture({
+        chunkDurationMs: 250,
+        onChunk: (chunk) => wsClientRef.current?.sendAudioChunk(chunk),
+      });
+      captureRef.current = capture;
+
+      // getUserMedia — the gesture context is still valid here on all browsers
+      const stream = await capture.start();
+      startTimeRef.current = Date.now();
+
+      // ★ STEP 3: Start VAD immediately after getUserMedia
+      //   AudioContext creation here is still inside the async chain close to user gesture
+      const vad = new VADEngine({
+        energyThreshold,
+        silenceThresholdMs,
+        onAudioLevel: (lvl) => setAudioLevel(lvl),
+        onSpeechStart: () => setSpeechDetected(true),
+        onSilenceTimeout: () => {
+          if (!isStoppingRef.current) stopListening();
+        },
+      });
+      vadRef.current = vad;
+      await vad.start(stream);
+
+      // Update analyser for waveform visualisation
+      setAnalyser(vad.getAnalyser());
+
+      // ★ STEP 4: Optional browser SpeechRecognition for live text preview
+      //   Try on any browser that supports it — no device restriction
+      if (typeof window !== "undefined") {
+        const SpeechRec =
+          (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+        if (SpeechRec) {
+          try {
+            const recognition = new SpeechRec();
+            recognition.continuous = false;
+            recognition.interimResults = true;
+            recognition.maxAlternatives = 1;
+            recognition.lang =
+              currentLanguageRef.current && currentLanguageRef.current !== "auto"
+                ? currentLanguageRef.current
+                : "en-IN";
+
+            recognition.onresult = (event: any) => {
+              let t = "";
+              for (let i = event.resultIndex; i < event.results.length; i++) {
+                t += event.results[i][0].transcript;
+              }
+              const full = t.trim();
+              if (full) {
+                setLiveTranscript(full);
+                transcriptRef.current = full;
+                onTranscript?.(full, false);
+              }
+            };
+            recognition.onerror = (e: any) => {
+              // audio-capture = mic already in use; silently ignore
+              if (e.error !== "no-speech" && e.error !== "aborted" && e.error !== "audio-capture") {
+                console.debug("[SpeechRecognition] note:", e.error);
+              }
+            };
+            recognition.onend = () => {
+              // Auto-stop if we got a transcript and haven't already stopped
+              if (transcriptRef.current?.trim() && !isStoppingRef.current) {
+                stopListening();
+              }
+            };
+            recognition.start();
+            speechRecognitionRef.current = recognition;
+          } catch (recErr) {
+            // Non-fatal: SpeechRecognition is optional preview only
+            console.debug("[SpeechRecognition] init skip:", recErr);
+          }
+        }
+      }
+
+      // ★ STEP 5: Set up WebSocket for real-time streaming (non-blocking)
       const wsClient = new VoiceWebSocketClient({
-        language: currentLanguageRef.current === "auto" ? "en-IN" : currentLanguageRef.current,
+        language:
+          currentLanguageRef.current === "auto" ? "en-IN" : currentLanguageRef.current,
         onTranscript: (t, isFinal) => {
           setLiveTranscript(t);
           transcriptRef.current = t;
@@ -302,119 +371,33 @@ function detectScriptLanguage(text: string, fallbackLang: IndicLanguageCode = "e
           setResponseAnswer(res.answer);
           onResponse?.(res);
         },
-        onTtsChunk: (base64) => {
-          if (autoSpeak && playerRef.current) {
-            playerRef.current.playBase64(base64);
-          }
+        onTtsChunk: (_base64) => {
+          // TTS chunks from WS are handled via speakAnswer after response completes
+          void _base64;
         },
         onDone: (timings, res) => {
-          if (res) {
-            setResultState(res);
-            setResponseAnswer(res.answer);
-          }
-          if (timings.totalLatencyMs) {
-            setLatencyMs(timings.totalLatencyMs);
-          }
+          if (res) { setResultState(res); setResponseAnswer(res.answer); }
+          if (timings.totalLatencyMs) setLatencyMs(timings.totalLatencyMs);
         },
-        onError: (err) => {
-          console.warn("[useVoiceRag] Streaming socket note:", err.message);
-        },
+        onError: (err) => console.warn("[useVoiceRag] WS note:", err.message),
       });
-
       wsClientRef.current = wsClient;
-      // Initiate background connection (non-blocking)
       wsClient.connect().catch(() => {});
 
-        // 2. Start Live Browser SpeechRecognition for instant desktop feedback (Desktop only — disabled on mobile/Android to prevent hardware mic conflict)
-        const isDesktop = detectDeviceCategory() === "desktop";
-        if (isDesktop && typeof window !== "undefined") {
-          const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-          if (SpeechRec) {
-            try {
-              const recognition = new SpeechRec();
-              recognition.continuous = false; // Auto-detects end of utterance and triggers onend
-              recognition.interimResults = true;
-              recognition.maxAlternatives = 1;
-              
-              // Set appropriate recognition language
-              if (currentLanguageRef.current && currentLanguageRef.current !== "auto") {
-                recognition.lang = currentLanguageRef.current;
-              } else {
-                // In Auto mode, use standard en-IN phonetics so Sarvam STT can auto-detect the true language from audio
-                recognition.lang = "en-IN";
-              }
-
-              recognition.onresult = (event: any) => {
-                let currentTranscript = "";
-                for (let i = event.resultIndex; i < event.results.length; i++) {
-                  currentTranscript += event.results[i][0].transcript;
-                }
-                const full = currentTranscript.trim();
-                if (full) {
-                  setLiveTranscript(full);
-                  transcriptRef.current = full;
-                  onTranscript?.(full, false);
-                }
-              };
-
-              recognition.onerror = (e: any) => {
-                if (e.error === "no-speech" || e.error === "aborted") {
-                  // Silently ignore standard idle timeout
-                } else {
-                  console.debug("[SpeechRecognition] note:", e.error);
-                }
-              };
-
-              recognition.onend = () => {
-                // When utterance ends, automatically trigger stop and search if we got words
-                if (transcriptRef.current && transcriptRef.current.trim() && !isStoppingRef.current) {
-                  stopListening();
-                }
-              };
-
-              recognition.start();
-              speechRecognitionRef.current = recognition;
-            } catch (recErr) {
-              console.debug("[SpeechRecognition] init skip:", recErr);
-            }
-          }
-        }
-
-      // 3. Initialize Audio Streamer with 250ms chunks and 100% track cleanup
-      const streamer = new AudioStreamer({
-        chunkDurationMs: 250,
-        energyThreshold,
-        silenceThresholdMs,
-        onAudioChunk: (chunk) => {
-          if (wsClientRef.current) {
-            wsClientRef.current.sendAudioChunk(chunk);
-          }
-        },
-        onAudioLevel: (lvl) => {
-          setAudioLevel(lvl);
-        },
-        onSpeechDetected: (detected) => {
-          setSpeechDetected(detected);
-        },
-        onSilenceTimeout: () => {
-          if (!isStoppingRef.current) {
-            stopListening();
-          }
-        },
-        onError: (err) => {
-          setError(err);
-          onError?.(err);
-          updateState("error");
-        },
-      });
-
-      streamerRef.current = streamer;
-      await streamer.startStreaming();
-
-      setAnalyser(streamer.getAnalyser());
       updateState("listening");
     } catch (err: unknown) {
-      console.error("[useVoiceRag] Failed to start voice streaming:", err);
+      captureRef.current?.release();
+      vadRef.current?.stop();
+      console.error("[useVoiceRag] startListening error:", err);
+      const voiceErr: VoiceError = {
+        code: (err as any)?.code === "PERMISSION_DENIED" ? "PERMISSION_DENIED" : "MIC_UNAVAILABLE",
+        message:
+          (err as { message?: string })?.message ||
+          "Unable to access microphone. Please check your browser settings.",
+        originalError: err,
+      };
+      setError(voiceErr);
+      onError?.(voiceErr);
       updateState("error");
     }
   }, [
@@ -431,27 +414,16 @@ function detectScriptLanguage(text: string, fallbackLang: IndicLanguageCode = "e
   ]);
 
   const toggleListening = useCallback(async () => {
-    if (state === "listening" || state === "requesting_permission" || state === "connecting") {
+    if (
+      state === "listening" ||
+      state === "requesting_permission" ||
+      state === "connecting"
+    ) {
       await stopListening();
     } else if (state === "idle" || state === "error") {
       await startListening();
     }
   }, [state, stopListening, startListening]);
-
-  // Teardown & memory leak prevention on unmount
-  useEffect(() => {
-    return () => {
-      if (streamerRef.current) {
-        streamerRef.current.cleanupHardwareTracks();
-      }
-      if (wsClientRef.current) {
-        wsClientRef.current.close();
-      }
-      if (playerRef.current) {
-        playerRef.current.destroy();
-      }
-    };
-  }, []);
 
   return {
     state,

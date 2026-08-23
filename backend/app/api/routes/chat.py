@@ -4,7 +4,8 @@ from loguru import logger
 import time
 
 from app.schemas import QueryRequest, QueryResponse, STTResponse, TTSRequest, TTSResponse
-from app.stt.transcribe import transcribe_audio, synthesize_speech
+from app.stt.transcribe import transcribe_audio
+from app.tts.synthesize import synthesize_speech
 from app.language import transliterate_indic_text, detect_language, is_indic_script
 from app.pipeline.orchestrator import process_query
 
