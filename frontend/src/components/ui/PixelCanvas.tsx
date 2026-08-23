@@ -44,7 +44,7 @@ export default function PixelCanvas({ className, style }: { className?: string; 
     const mouse: MouseState = {
       x: -1000,
       y: -1000,
-      radius: 110,
+      radius: 46,
       isActive: false,
     };
 
@@ -179,38 +179,48 @@ export default function PixelCanvas({ className, style }: { className?: string; 
     resizeObserver.observe(container);
 
     let time = 0;
-    const SPRING = 0.14;
-    const DAMPING = 0.84;
+    const SPRING = 0.12;
+    const DAMPING = 0.86;
 
     function animate() {
       if (!ctx) return;
-      time += 0.025;
+      time += 0.022;
       ctx.clearRect(0, 0, width, height);
 
       const pLen = pixels.length;
       for (let i = 0; i < pLen; i++) {
         const p = pixels[i];
 
-        // 1. Mouse Displacement & Luminescence
+        // 1. Interactive Magnetic Swirl Vortex & Chromatic Luminescence
         const dx = mouse.x - p.x;
         const dy = mouse.y - p.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
 
+        let isHovered = false;
+        let hoverRatio = 0;
+
         if (dist < mouse.radius && mouse.isActive) {
-          const force = (1 - dist / mouse.radius) * 18;
+          isHovered = true;
+          hoverRatio = 1 - dist / mouse.radius;
           const angle = Math.atan2(dy, dx);
-          p.vx -= Math.cos(angle) * force;
-          p.vy -= Math.sin(angle) * force;
-          p.currentAlpha = 1.0;
+
+          // Tangential swirl + gentle radial compression
+          const swirlAngle = angle + Math.PI / 2;
+          const swirlForce = hoverRatio * 5.2;
+          const radialForce = (Math.sin(hoverRatio * Math.PI) - 0.2) * 2.8;
+
+          p.vx += Math.cos(swirlAngle) * swirlForce - Math.cos(angle) * radialForce;
+          p.vy += Math.sin(swirlAngle) * swirlForce - Math.sin(angle) * radialForce;
+          p.currentAlpha = Math.min(1.0, p.baseAlpha + hoverRatio * 0.45);
         } else {
-          p.currentAlpha += (p.baseAlpha - p.currentAlpha) * 0.08;
+          p.currentAlpha += (p.baseAlpha - p.currentAlpha) * 0.07;
         }
 
-        // 2. Ambient subtle breeze motion
-        const breezeX = Math.sin(time + p.noisePhase) * 0.7;
-        const breezeY = Math.cos(time * 0.7 + p.noisePhase) * 0.7;
+        // 2. Ambient harmonic landscape wave motion
+        const breezeX = Math.sin(time + p.noisePhase) * 0.8 + Math.cos(time * 0.5 + p.y * 0.02) * 0.4;
+        const breezeY = Math.cos(time * 0.7 + p.noisePhase) * 0.8 + Math.sin(time * 0.4 + p.x * 0.02) * 0.4;
 
-        // 3. Spring back
+        // 3. Elastic Spring Back
         const homeDx = p.originX + breezeX - p.x;
         const homeDy = p.originY + breezeY - p.y;
 
@@ -222,9 +232,30 @@ export default function PixelCanvas({ className, style }: { className?: string; 
         p.x += p.vx;
         p.y += p.vy;
 
-        // 4. Render Tile with high-res crisp edges
-        ctx.fillStyle = `rgba(${p.r}, ${p.g}, ${p.b}, ${p.currentAlpha})`;
+        // 4. Render Tile with Chromatic Luminescence & Crisp Edges
+        if (isHovered) {
+          // Dynamic chromatic shift on hover: emerald -> cyan -> gold shimmer
+          const glow = hoverRatio * 55;
+          const r = Math.min(255, Math.floor(p.r * (1 - hoverRatio * 0.3) + glow * 0.4));
+          const g = Math.min(255, Math.floor(p.g + glow * 1.3));
+          const b = Math.min(255, Math.floor(p.b + glow * 1.6));
+          ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${p.currentAlpha})`;
+        } else {
+          ctx.fillStyle = `rgba(${p.r}, ${p.g}, ${p.b}, ${p.currentAlpha})`;
+        }
         ctx.fillRect(p.x, p.y, p.size, p.size);
+      }
+
+      // 5. Soft glowing cursor focal halo
+      if (mouse.isActive && mouse.x > 0 && mouse.y > 0) {
+        const grad = ctx.createRadialGradient(mouse.x, mouse.y, 0, mouse.x, mouse.y, mouse.radius * 1.4);
+        grad.addColorStop(0, "rgba(56, 189, 248, 0.18)");
+        grad.addColorStop(0.5, "rgba(16, 185, 129, 0.08)");
+        grad.addColorStop(1, "rgba(0, 0, 0, 0)");
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(mouse.x, mouse.y, mouse.radius * 1.4, 0, Math.PI * 2);
+        ctx.fill();
       }
 
       animationFrameId = requestAnimationFrame(animate);

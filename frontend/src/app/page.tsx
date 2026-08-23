@@ -391,13 +391,34 @@ function InlineResultCardSkeleton({ query, targetLang }: { query?: string; targe
   );
 }
 
+const ALL_INDIC_LANGUAGES: Array<{ code: IndicLanguageCode; label: string; nativeLabel: string; flag: string }> = [
+  { code: "auto", label: "Auto-Detect", nativeLabel: "Auto-Detect", flag: "🌐" },
+  { code: "gu-IN", label: "Gujarati", nativeLabel: "ગુજરાતી", flag: "🇮🇳" },
+  { code: "hi-IN", label: "Hindi", nativeLabel: "हिन्दी", flag: "🇮🇳" },
+  { code: "en-IN", label: "English", nativeLabel: "English", flag: "🇬🇧" },
+  { code: "mr-IN", label: "Marathi", nativeLabel: "मराठी", flag: "🇮🇳" },
+  { code: "ta-IN", label: "Tamil", nativeLabel: "தமிழ்", flag: "🇮🇳" },
+  { code: "te-IN", label: "Telugu", nativeLabel: "తెలుగు", flag: "🇮🇳" },
+  { code: "bn-IN", label: "Bengali", nativeLabel: "বাংলা", flag: "🇮🇳" },
+  { code: "kn-IN", label: "Kannada", nativeLabel: "ಕನ್ನಡ", flag: "🇮🇳" },
+  { code: "ml-IN", label: "Malayalam", nativeLabel: "മലയാളം", flag: "🇮🇳" },
+  { code: "pa-IN", label: "Punjabi", nativeLabel: "ਪੰਜਾਬੀ", flag: "🇮🇳" },
+  { code: "or-IN", label: "Odia", nativeLabel: "ଓଡ଼ିଆ", flag: "🇮🇳" },
+];
+
 /* ━━━━━━━━━━━━━━━━━━━━ MAIN PAGE ━━━━━━━━━━━━━━━━━━━━ */
 export default function VoiceRagPage() {
   const [inputVal, setInputVal] = useState("");
   const [submittedQuery, setSubmittedQuery] = useState("");
   const [selectedLang, setSelectedLang] = useState<IndicLanguageCode>("auto");
   const [showAllSuggestions, setShowAllSuggestions] = useState(false);
+  const [isLangDropdownOpen, setIsLangDropdownOpen] = useState(false);
+  const [isMobileLangOpen, setIsMobileLangOpen] = useState(false);
+
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const suggestionsRef = useRef<HTMLDivElement | null>(null);
+  const langDropdownRef = useRef<HTMLDivElement | null>(null);
+  const mobileLangRef = useRef<HTMLDivElement | null>(null);
 
   const voice = useVoiceQuery(selectedLang);
   const text = useTextQuery();
@@ -411,6 +432,37 @@ export default function VoiceRagPage() {
         voice.setLanguage(saved);
       }
     } catch {}
+  }, []);
+
+  // Click outside to dismiss the 11 Indic languages drawer and custom dropdowns
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent | TouchEvent) {
+      if (
+        suggestionsRef.current &&
+        !suggestionsRef.current.contains(e.target as Node)
+      ) {
+        setShowAllSuggestions(false);
+      }
+      if (
+        langDropdownRef.current &&
+        !langDropdownRef.current.contains(e.target as Node)
+      ) {
+        setIsLangDropdownOpen(false);
+      }
+      if (
+        mobileLangRef.current &&
+        !mobileLangRef.current.contains(e.target as Node)
+      ) {
+        setIsMobileLangOpen(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("touchstart", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("touchstart", handleClickOutside);
+    };
   }, []);
 
   const isVoiceActive = voice.isRecognizing || voice.recorderState === "recognizing";
@@ -430,6 +482,9 @@ export default function VoiceRagPage() {
   const submit = useCallback(async (queryToSubmit: string, langCode?: IndicLanguageCode) => {
     const q = queryToSubmit.trim();
     if (!q || isLoading) return;
+
+    // Automatically close expanded suggestions drawer when a query is submitted
+    setShowAllSuggestions(false);
 
     if (langCode) {
       handleSelectLang(langCode);
@@ -574,7 +629,10 @@ export default function VoiceRagPage() {
       <div className="studio-layout">
 
         {/* ─── LEFT PANEL: VIBRANT INTERACTIVE PIXEL ART CANVAS ─── */}
-        <div className="canvas-panel">
+        <div
+          className="canvas-panel"
+          onMouseEnter={() => setShowAllSuggestions(false)}
+        >
           {/* High-res Interactive Canvas */}
           <div style={{
             position: "absolute",
@@ -666,24 +724,126 @@ export default function VoiceRagPage() {
               </p>
             </div>
 
-            {/* ─── Language Quick Switcher Bar (Gujarati, Hindi, English, Auto) ─── */}
-            <div style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: 6,
-              background: "rgba(11, 15, 25, 0.8)",
-              border: `1px solid ${T.glassBdr}`,
-              borderRadius: 10,
-              padding: "5px 8px",
+            {/* ─── Mobile Language Selector (Custom Dark Popover) ─── */}
+            <div ref={mobileLangRef} className="flex sm:hidden" style={{ position: "relative", marginBottom: 2, width: "fit-content" }}>
+              <button
+                type="button"
+                onClick={() => setIsMobileLangOpen((v) => !v)}
+                style={{
+                  background: "rgba(14, 19, 31, 0.95)",
+                  border: `1px solid ${selectedLang !== "auto" ? "rgba(108, 99, 255, 0.6)" : T.glassBdr}`,
+                  color: "#FFFFFF",
+                  borderRadius: 8,
+                  padding: "5px 10px",
+                  fontSize: 11.5,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 7,
+                  boxShadow: "0 4px 14px rgba(0,0,0,0.35)",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span>{ALL_INDIC_LANGUAGES.find((l) => l.code === selectedLang)?.flag || "🌐"}</span>
+                  <span style={{ color: "#F8FAFC" }}>
+                    {selectedLang === "auto"
+                      ? "Auto-Detect Indic"
+                      : `${ALL_INDIC_LANGUAGES.find((l) => l.code === selectedLang)?.nativeLabel} (${ALL_INDIC_LANGUAGES.find((l) => l.code === selectedLang)?.label})`}
+                  </span>
+                </div>
+                <span style={{ fontSize: 9, color: T.brandLight }}>{isMobileLangOpen ? "▲" : "▼"}</span>
+              </button>
+
+              <AnimatePresence>
+                {isMobileLangOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 6, scale: 0.98 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 4, scale: 0.98 }}
+                    transition={{ duration: 0.14 }}
+                    style={{
+                      position: "absolute",
+                      top: "calc(100% + 4px)",
+                      left: 0,
+                      zIndex: 80,
+                      background: "rgba(10, 15, 26, 0.98)",
+                      backdropFilter: "blur(24px)",
+                      border: `1px solid ${T.brandBdr}`,
+                      borderRadius: 10,
+                      padding: "6px",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 2,
+                      minWidth: 200,
+                      maxHeight: 280,
+                      overflowY: "auto",
+                      boxShadow: "0 16px 40px rgba(0,0,0,0.85)",
+                    }}
+                  >
+                    {ALL_INDIC_LANGUAGES.map((l) => {
+                      const isSelected = selectedLang === l.code;
+                      return (
+                        <button
+                          key={l.code}
+                          type="button"
+                          onClick={() => {
+                            handleSelectLang(l.code);
+                            setIsMobileLangOpen(false);
+                          }}
+                          style={{
+                            background: isSelected ? "rgba(108, 99, 255, 0.25)" : "transparent",
+                            border: "none",
+                            borderRadius: 6,
+                            padding: "8px 10px",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            cursor: "pointer",
+                            color: isSelected ? "#38BDF8" : "#F8FAFC",
+                            fontSize: 12.5,
+                            fontWeight: isSelected ? 700 : 500,
+                            textAlign: "left",
+                          }}
+                        >
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <span>{l.flag}</span>
+                            <span style={{ color: isSelected ? "#38BDF8" : "#FFFFFF" }}>{l.nativeLabel}</span>
+                            {l.code !== "auto" && l.code !== "en-IN" && (
+                              <span style={{ fontSize: 11, color: T.textMuted }}>({l.label})</span>
+                            )}
+                          </div>
+                          {isSelected && <span style={{ color: "#38BDF8", fontWeight: 800 }}>✓</span>}
+                        </button>
+                      );
+                    })}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* ─── Desktop Language Selector (Segmented Tabs + Custom Popover) ─── */}
+            <div className="hidden sm:flex items-center justify-between" style={{
+              gap: 8,
+              width: "100%",
             }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 5, overflowX: "auto" }}>
+              {/* Left: Quick Switcher Tabs */}
+              <div style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 4,
+                background: "rgba(11, 15, 25, 0.75)",
+                border: `1px solid ${T.glassBdr}`,
+                borderRadius: 8,
+                padding: "3px",
+                overflowX: "auto",
+              }}>
                 {[
-                  { code: "auto" as const, label: "🌐 Auto" },
-                  { code: "gu-IN" as const, label: "🇮🇳 ગુજરાતી" },
-                  { code: "hi-IN" as const, label: "🇮🇳 हिन्दी" },
-                  { code: "en-IN" as const, label: "🇬🇧 English" },
-                  { code: "mr-IN" as const, label: "🇮🇳 मराठी" },
+                  { code: "auto" as const, label: "🌐 Auto-Detect" },
+                  { code: "gu-IN" as const, label: "ગુજરાતી" },
+                  { code: "hi-IN" as const, label: "हिन्दी" },
+                  { code: "en-IN" as const, label: "English" },
+                  { code: "mr-IN" as const, label: "मराठी" },
                 ].map((l) => {
                   const isActive = selectedLang === l.code;
                   return (
@@ -692,11 +852,11 @@ export default function VoiceRagPage() {
                       type="button"
                       onClick={() => handleSelectLang(l.code)}
                       style={{
-                        background: isActive ? "rgba(108, 99, 255, 0.25)" : "transparent",
-                        border: `1px solid ${isActive ? T.brandLight : "transparent"}`,
+                        background: isActive ? "rgba(108, 99, 255, 0.22)" : "transparent",
+                        border: `1px solid ${isActive ? "rgba(108, 99, 255, 0.5)" : "transparent"}`,
                         color: isActive ? "#FFFFFF" : T.textMuted,
                         borderRadius: 6,
-                        padding: "3px 8px",
+                        padding: "4px 9px",
                         fontSize: 11,
                         fontFamily: "inherit",
                         cursor: "pointer",
@@ -711,36 +871,145 @@ export default function VoiceRagPage() {
                 })}
               </div>
 
-              {/* Dropdown for specific language selection across all 11 Indic languages */}
-              <select
-                value={selectedLang}
-                onChange={(e) => handleSelectLang(e.target.value as IndicLanguageCode)}
-                aria-label="Select target language"
-                style={{
-                  background: "rgba(14, 19, 31, 0.95)",
-                  border: `1px solid ${T.glassBdr}`,
-                  color: T.textSec,
-                  borderRadius: 6,
-                  padding: "3px 6px",
-                  fontSize: 10.5,
-                  outline: "none",
-                  cursor: "pointer",
-                  maxWidth: 135,
-                }}
-              >
-                <option value="auto">🌐 Auto-Detect</option>
-                <option value="gu-IN">🇮🇳 ગુજરાતી (Gujarati)</option>
-                <option value="hi-IN">🇮🇳 हिन्दी (Hindi)</option>
-                <option value="en-IN">🇬🇧 English</option>
-                <option value="mr-IN">🇮🇳 मराठी (Marathi)</option>
-                <option value="ta-IN">🇮🇳 தமிழ் (Tamil)</option>
-                <option value="te-IN">🇮🇳 తెలుగు (Telugu)</option>
-                <option value="bn-IN">🇮🇳 বাংলা (Bengali)</option>
-                <option value="kn-IN">🇮🇳 ಕನ್ನಡ (Kannada)</option>
-                <option value="ml-IN">🇮🇳 മലയാളം (Malayalam)</option>
-                <option value="pa-IN">🇮🇳 ਪੰਜਾਬੀ (Punjabi)</option>
-                <option value="or-IN">🇮🇳 ଓଡ଼ିଆ (Odia)</option>
-              </select>
+              {/* Right: +6 More Indic Languages Custom Dark Glass Popover */}
+              <div ref={langDropdownRef} style={{ position: "relative", flexShrink: 0 }}>
+                <button
+                  type="button"
+                  onClick={() => setIsLangDropdownOpen((v) => !v)}
+                  style={{
+                    background: !["auto", "gu-IN", "hi-IN", "en-IN", "mr-IN"].includes(selectedLang)
+                      ? "rgba(108, 99, 255, 0.25)"
+                      : "rgba(14, 19, 31, 0.95)",
+                    border: `1px solid ${
+                      !["auto", "gu-IN", "hi-IN", "en-IN", "mr-IN"].includes(selectedLang)
+                        ? "rgba(108, 99, 255, 0.6)"
+                        : T.glassBdr
+                    }`,
+                    color: !["auto", "gu-IN", "hi-IN", "en-IN", "mr-IN"].includes(selectedLang)
+                      ? "#FFFFFF"
+                      : T.textSec,
+                    borderRadius: 8,
+                    padding: "4px 10px",
+                    fontSize: 11,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    transition: "all 0.15s ease",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = T.brandBdr;
+                    e.currentTarget.style.color = "#FFFFFF";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = !["auto", "gu-IN", "hi-IN", "en-IN", "mr-IN"].includes(selectedLang)
+                      ? "rgba(108, 99, 255, 0.6)"
+                      : T.glassBdr;
+                    e.currentTarget.style.color = !["auto", "gu-IN", "hi-IN", "en-IN", "mr-IN"].includes(selectedLang)
+                      ? "#FFFFFF"
+                      : T.textSec;
+                  }}
+                >
+                  <span>
+                    {!["auto", "gu-IN", "hi-IN", "en-IN", "mr-IN"].includes(selectedLang)
+                      ? `🇮🇳 ${ALL_INDIC_LANGUAGES.find((l) => l.code === selectedLang)?.nativeLabel || selectedLang}`
+                      : "+6 More Indic"}
+                  </span>
+                  <span style={{ fontSize: 9, opacity: 0.7 }}>{isLangDropdownOpen ? "▲" : "▼"}</span>
+                </button>
+
+                {/* Custom Glass Popover Menu */}
+                <AnimatePresence>
+                  {isLangDropdownOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 6, scale: 0.96 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 4, scale: 0.96 }}
+                      transition={{ duration: 0.14 }}
+                      style={{
+                        position: "absolute",
+                        top: "calc(100% + 6px)",
+                        right: 0,
+                        zIndex: 70,
+                        background: "rgba(10, 15, 26, 0.98)",
+                        backdropFilter: "blur(20px)",
+                        border: `1px solid ${T.brandBdr}`,
+                        borderRadius: 10,
+                        padding: "6px",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 2,
+                        minWidth: 185,
+                        boxShadow: "0 16px 40px rgba(0,0,0,0.85)",
+                      }}
+                    >
+                      <div style={{
+                        fontSize: 9.5,
+                        fontFamily: "monospace",
+                        fontWeight: 800,
+                        color: T.brandLight,
+                        padding: "4px 8px",
+                        letterSpacing: 0.8,
+                        textTransform: "uppercase",
+                        borderBottom: `1px solid ${T.glassBdr}`,
+                        marginBottom: 3,
+                      }}>
+                        Additional Indic Languages
+                      </div>
+
+                      {ALL_INDIC_LANGUAGES.filter((l) => !["auto", "gu-IN", "hi-IN", "en-IN", "mr-IN"].includes(l.code)).map((l) => {
+                        const isSelected = selectedLang === l.code;
+                        return (
+                          <button
+                            key={l.code}
+                            type="button"
+                            onClick={() => {
+                              handleSelectLang(l.code);
+                              setIsLangDropdownOpen(false);
+                            }}
+                            style={{
+                              background: isSelected ? "rgba(108, 99, 255, 0.25)" : "transparent",
+                              border: "none",
+                              borderRadius: 6,
+                              padding: "6px 8px",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              gap: 8,
+                              cursor: "pointer",
+                              textAlign: "left",
+                              color: isSelected ? "#38BDF8" : "#F8FAFC",
+                              fontSize: 12,
+                              fontWeight: isSelected ? 700 : 500,
+                              transition: "all 0.12s ease",
+                            }}
+                            onMouseEnter={(e) => {
+                              if (!isSelected) {
+                                e.currentTarget.style.background = "rgba(108, 99, 255, 0.15)";
+                                e.currentTarget.style.color = "#FFFFFF";
+                              }
+                            }}
+                            onMouseLeave={(e) => {
+                              if (!isSelected) {
+                                e.currentTarget.style.background = "transparent";
+                                e.currentTarget.style.color = "#F8FAFC";
+                              }
+                            }}
+                          >
+                            <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                              <span>{l.flag}</span>
+                              <span style={{ color: isSelected ? "#38BDF8" : "#FFFFFF" }}>{l.nativeLabel}</span>
+                              <span style={{ fontSize: 10.5, color: T.textMuted }}>({l.label})</span>
+                            </div>
+                            {isSelected && <span style={{ color: "#38BDF8", fontWeight: 800 }}>✓</span>}
+                          </button>
+                        );
+                      })}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
             </div>
 
             {/* ─── Search & Voice Input Box (100% Auto-Language Recognition) ─── */}
@@ -993,100 +1262,257 @@ export default function VoiceRagPage() {
               )}
             </form>
 
-            {/* ─── Suggestion Chips (Clean 2-Chip Default + Organized Expand) ─── */}
-            <div style={{
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              gap: 8,
-              maxWidth: 600,
-              margin: "0 auto",
-              width: "100%",
-            }}>
-              <div style={{
+            {/* ─── Suggestion Chips (11 Indic Multilingual Prompts Drawer) ─── */}
+            <div
+              ref={suggestionsRef}
+              style={{
                 display: "flex",
-                flexWrap: "wrap",
-                justifyContent: "center",
-                alignItems: "center",
-                gap: 6,
+                flexDirection: "column",
+                gap: 8,
                 width: "100%",
-              }}>
-                {(showAllSuggestions ? SUGGESTIONS : SUGGESTIONS.slice(0, 2)).map((item) => (
+              }}
+            >
+              {!showAllSuggestions ? (
+                /* Collapsed Default: Clean Left-Aligned 2 Chips + Expand Button */
+                <div style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  width: "100%",
+                  overflowX: "auto",
+                  paddingBottom: 2,
+                  scrollbarWidth: "none",
+                }}>
+                  {SUGGESTIONS.slice(0, 2).map((item) => (
+                    <button
+                      key={item.lang + item.label}
+                      type="button"
+                      onClick={() => submit(item.query, item.langCode)}
+                      style={{
+                        background: "rgba(255,255,255,0.03)",
+                        border: `1px solid ${T.glassBdr}`,
+                        borderRadius: 6,
+                        padding: "5px 10px",
+                        fontSize: 12,
+                        color: T.textSec,
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 6,
+                        flexShrink: 0,
+                        whiteSpace: "nowrap",
+                        transition: "all 0.15s ease",
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.borderColor = T.brandBdr;
+                        e.currentTarget.style.color = T.textMain;
+                        e.currentTarget.style.background = "rgba(108,99,255,0.08)";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.borderColor = T.glassBdr;
+                        e.currentTarget.style.color = T.textSec;
+                        e.currentTarget.style.background = "rgba(255,255,255,0.03)";
+                      }}
+                    >
+                      <span style={{
+                        fontSize: 9.5,
+                        fontFamily: "monospace",
+                        padding: "1px 5px",
+                        borderRadius: 3,
+                        fontWeight: 700,
+                        background: item.lang === "HI" ? "rgba(245,158,11,0.15)" : "rgba(16,185,129,0.15)",
+                        color: item.lang === "HI" ? T.warning : T.success,
+                        border: `1px solid ${item.lang === "HI" ? "rgba(245,158,11,0.3)" : "rgba(16,185,129,0.3)"}`,
+                      }}>
+                        {item.lang}
+                      </span>
+                      <span>{item.label}</span>
+                    </button>
+                  ))}
+
+                  {/* Expand Button */}
                   <button
-                    key={item.lang + item.label}
                     type="button"
-                    onClick={() => submit(item.query, item.langCode)}
+                    onClick={() => setShowAllSuggestions(true)}
                     style={{
-                      background: "rgba(255,255,255,0.03)",
-                      border: `1px solid ${T.glassBdr}`,
+                      background: "rgba(108,99,255,0.08)",
+                      border: `1px solid ${T.brandBdr}`,
                       borderRadius: 6,
                       padding: "5px 10px",
-                      fontSize: 11.5,
-                      color: T.textSec,
+                      fontSize: 11,
+                      fontFamily: "monospace",
+                      color: T.brandLight,
                       cursor: "pointer",
                       display: "flex",
                       alignItems: "center",
-                      gap: 6,
+                      gap: 4,
+                      fontWeight: 700,
+                      flexShrink: 0,
+                      whiteSpace: "nowrap",
                       transition: "all 0.15s ease",
                     }}
                     onMouseEnter={(e) => {
-                      e.currentTarget.style.borderColor = T.brandBdr;
-                      e.currentTarget.style.color = T.textMain;
-                      e.currentTarget.style.background = "rgba(108,99,255,0.08)";
+                      e.currentTarget.style.background = "rgba(108,99,255,0.2)";
+                      e.currentTarget.style.color = "#FFFFFF";
                     }}
                     onMouseLeave={(e) => {
-                      e.currentTarget.style.borderColor = T.glassBdr;
-                      e.currentTarget.style.color = T.textSec;
-                      e.currentTarget.style.background = "rgba(255,255,255,0.03)";
+                      e.currentTarget.style.background = "rgba(108,99,255,0.08)";
+                      e.currentTarget.style.color = T.brandLight;
                     }}
                   >
-                    <span style={{
-                      fontSize: 9,
-                      fontFamily: "monospace",
-                      padding: "1px 4px",
-                      borderRadius: 3,
-                      fontWeight: 700,
-                      background: item.lang === "HI" ? "rgba(245,158,11,0.15)" : item.lang === "GU" ? "rgba(16,185,129,0.15)" : item.lang === "TA" || item.lang === "TE" ? "rgba(56,189,248,0.15)" : "rgba(108,99,255,0.15)",
-                      color: item.lang === "HI" ? T.warning : item.lang === "GU" ? T.success : item.lang === "TA" || item.lang === "TE" ? T.accent : T.brandLight,
-                      border: `1px solid ${item.lang === "HI" ? "rgba(245,158,11,0.3)" : item.lang === "GU" ? "rgba(16,185,129,0.3)" : "rgba(108,99,255,0.3)"}`,
-                    }}>
-                      {item.lang}
-                    </span>
-                    <span>{item.label}</span>
+                    <span>+{SUGGESTIONS.length - 2} Indic Languages</span>
+                    <span style={{ fontSize: 9 }}>▾</span>
                   </button>
-                ))}
-
-                {/* Expand / Collapse Button */}
-                <button
-                  type="button"
-                  onClick={() => setShowAllSuggestions((v) => !v)}
+                </div>
+              ) : (
+                /* Expanded View: Clean 2-Column Grid (Left-Aligned & Mobile-Optimized) */
+                <motion.div
+                  initial={{ opacity: 0, y: -6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -6 }}
                   style={{
-                    background: showAllSuggestions ? "rgba(108,99,255,0.18)" : "rgba(108,99,255,0.08)",
-                    border: `1px solid ${T.brandBdr}`,
-                    borderRadius: 6,
-                    padding: "5px 10px",
-                    fontSize: 11,
-                    fontFamily: "monospace",
-                    color: T.brandLight,
-                    cursor: "pointer",
+                    background: "rgba(11, 15, 25, 0.9)",
+                    border: `1px solid ${T.glassBdr}`,
+                    borderRadius: 10,
+                    padding: "12px",
                     display: "flex",
-                    alignItems: "center",
-                    gap: 4,
-                    fontWeight: 700,
-                    transition: "all 0.15s ease",
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = "rgba(108,99,255,0.22)";
-                    e.currentTarget.style.color = "#FFFFFF";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = showAllSuggestions ? "rgba(108,99,255,0.18)" : "rgba(108,99,255,0.08)";
-                    e.currentTarget.style.color = T.brandLight;
+                    flexDirection: "column",
+                    gap: 10,
+                    boxShadow: "0 8px 30px rgba(0,0,0,0.4)",
                   }}
                 >
-                  <span>{showAllSuggestions ? "▴ Show Less" : `+${SUGGESTIONS.length - 2} Indic Languages ▾`}</span>
-                </button>
-              </div>
+                  {/* Top Bar inside Drawer */}
+                  <div style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    borderBottom: `1px solid ${T.glassBdr}`,
+                    paddingBottom: 8,
+                  }}>
+                    <span style={{
+                      fontSize: 10,
+                      fontFamily: "monospace",
+                      letterSpacing: 1,
+                      textTransform: "uppercase",
+                      color: T.brandLight,
+                      fontWeight: 800,
+                    }}>
+                      ⚡ 11 Indic Multilingual Prompts
+                    </span>
+
+                    <button
+                      type="button"
+                      onClick={() => setShowAllSuggestions(false)}
+                      style={{
+                        background: "rgba(255,255,255,0.05)",
+                        border: `1px solid ${T.glassBdr}`,
+                        borderRadius: 4,
+                        padding: "2px 8px",
+                        fontSize: 10.5,
+                        fontFamily: "monospace",
+                        color: T.textSec,
+                        cursor: "pointer",
+                        fontWeight: 700,
+                        transition: "all 0.15s",
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.color = "#FFFFFF";
+                        e.currentTarget.style.background = "rgba(239,68,68,0.2)";
+                        e.currentTarget.style.borderColor = "rgba(239,68,68,0.4)";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.color = T.textSec;
+                        e.currentTarget.style.background = "rgba(255,255,255,0.05)";
+                        e.currentTarget.style.borderColor = T.glassBdr;
+                      }}
+                    >
+                      ▲ Close
+                    </button>
+                  </div>
+
+                  {/* 2-Column Responsive Grid */}
+                  <div style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+                    gap: 6,
+                  }}>
+                    {SUGGESTIONS.map((item) => (
+                      <button
+                        key={item.lang + item.label}
+                        type="button"
+                        onClick={() => submit(item.query, item.langCode)}
+                        style={{
+                          background: "rgba(255,255,255,0.025)",
+                          border: `1px solid ${T.glassBdr}`,
+                          borderRadius: 6,
+                          padding: "6px 8px",
+                          fontSize: 11.5,
+                          color: T.textSec,
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 7,
+                          textAlign: "left",
+                          transition: "all 0.15s ease",
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.borderColor = T.brandBdr;
+                          e.currentTarget.style.color = T.textMain;
+                          e.currentTarget.style.background = "rgba(108,99,255,0.12)";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.borderColor = T.glassBdr;
+                          e.currentTarget.style.color = T.textSec;
+                          e.currentTarget.style.background = "rgba(255,255,255,0.025)";
+                        }}
+                      >
+                        <span style={{
+                          fontSize: 9,
+                          fontFamily: "monospace",
+                          padding: "2px 4px",
+                          borderRadius: 3,
+                          fontWeight: 700,
+                          flexShrink: 0,
+                          background:
+                            item.lang === "HI"
+                              ? "rgba(245,158,11,0.15)"
+                              : item.lang === "GU"
+                              ? "rgba(16,185,129,0.15)"
+                              : item.lang === "MR"
+                              ? "rgba(168,85,247,0.15)"
+                              : item.lang === "TA" || item.lang === "TE"
+                              ? "rgba(56,189,248,0.15)"
+                              : "rgba(108,99,255,0.15)",
+                          color:
+                            item.lang === "HI"
+                              ? T.warning
+                              : item.lang === "GU"
+                              ? T.success
+                              : item.lang === "MR"
+                              ? "#C084FC"
+                              : item.lang === "TA" || item.lang === "TE"
+                              ? T.accent
+                              : T.brandLight,
+                          border: `1px solid ${
+                            item.lang === "HI"
+                              ? "rgba(245,158,11,0.3)"
+                              : item.lang === "GU"
+                              ? "rgba(16,185,129,0.3)"
+                              : item.lang === "MR"
+                              ? "rgba(168,85,247,0.3)"
+                              : "rgba(108,99,255,0.3)"
+                          }`,
+                        }}>
+                          {item.lang}
+                        </span>
+                        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {item.label}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
             </div>
 
             {/* ─── Inline Result Card ─── */}
