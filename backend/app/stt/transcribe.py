@@ -38,9 +38,32 @@ async def transcribe_audio(
     
     content = await audio_file.read()
     await audio_file.seek(0)
-    
+
+    # Sanitize content-type to remove codec parameters (e.g. 'audio/webm;codecs=opus' -> 'audio/webm')
+    # Sarvam AI STT strictly validates content-type and rejects strings with ';codecs=...'
+    raw_ct = (audio_file.content_type or "audio/webm").split(";")[0].strip().lower()
+    allowed_types = {
+        "audio/mpeg": ("audio/mpeg", "mp3"),
+        "audio/mp3": ("audio/mp3", "mp3"),
+        "audio/wav": ("audio/wav", "wav"),
+        "audio/x-wav": ("audio/wav", "wav"),
+        "audio/wave": ("audio/wav", "wav"),
+        "audio/webm": ("audio/webm", "webm"),
+        "video/webm": ("video/webm", "webm"),
+        "audio/ogg": ("audio/ogg", "ogg"),
+        "audio/opus": ("audio/opus", "opus"),
+        "audio/mp4": ("audio/mp4", "mp4"),
+        "audio/m4a": ("audio/mp4", "m4a"),
+        "audio/x-m4a": ("audio/mp4", "m4a"),
+        "audio/aac": ("audio/aac", "aac"),
+        "audio/x-aac": ("audio/aac", "aac"),
+        "audio/flac": ("audio/flac", "flac"),
+    }
+    safe_ct, safe_ext = allowed_types.get(raw_ct, ("audio/webm", "webm"))
+    safe_filename = f"recording.{safe_ext}"
+
     files = {
-        "file": (audio_file.filename or "recording.webm", content, audio_file.content_type or "audio/webm")
+        "file": (safe_filename, content, safe_ct)
     }
 
     url = SARVAM_STT_TRANSLATE_URL if translate_to_en else SARVAM_STT_URL
@@ -109,71 +132,6 @@ async def transcribe_audio(
             raise HTTPException(status_code=500, detail="Failed to process audio")
 
 
-_TTS_CACHE: dict[str, dict] = {}
-_TTS_CLIENT: Optional[httpx.AsyncClient] = None
+# Re-export synthesize_speech from dedicated tts module for backwards compatibility
+from app.tts.synthesize import synthesize_speech
 
-def _get_tts_client() -> httpx.AsyncClient:
-    global _TTS_CLIENT
-    if _TTS_CLIENT is None or _TTS_CLIENT.is_closed:
-        _TTS_CLIENT = httpx.AsyncClient(timeout=12.0, limits=httpx.Limits(max_keepalive_connections=20, max_connections=50))
-    return _TTS_CLIENT
-
-async def synthesize_speech(text: str, target_language_code: Optional[str] = None, speaker: str = "anushka") -> dict:
-    """
-    Calls Sarvam AI bulbul:v2 Text-to-Speech API with in-memory caching for instant audio delivery.
-    Supports all 11 Indic languages with accurate Unicode script mapping.
-    """
-    t0 = time.perf_counter()
-    settings = get_settings()
-    
-    if not settings.sarvam_api_key:
-        raise HTTPException(status_code=500, detail="Sarvam API key not configured")
-
-    # Auto detect Indic language code from Unicode script ranges & lexical markers
-    if not target_language_code or target_language_code in ("auto", "unknown"):
-        target_language_code = detect_language(text, default="en-IN")
-
-    # Sarvam TTS uses 'od-IN' or 'or-IN'
-    if target_language_code == "or-IN":
-        target_language_code = "od-IN"
-
-    cache_key = f"{target_language_code}:{speaker}:{text.strip()[:300]}"
-    if cache_key in _TTS_CACHE:
-        ms_cached = (time.perf_counter() - t0) * 1000
-        logger.info(f"Sarvam TTS CACHE HIT | lang={target_language_code} | ms={ms_cached:.2f}ms")
-        cached = _TTS_CACHE[cache_key].copy()
-        cached["ms_elapsed"] = round(ms_cached, 2)
-        return cached
-
-    headers = {
-        "api-subscription-key": settings.sarvam_api_key,
-        "Content-Type": "application/json"
-    }
-    
-    payload = {
-        "inputs": [text[:500]],
-        "target_language_code": target_language_code,
-        "speaker": speaker or "anushka",
-        "model": "bulbul:v2"
-    }
-
-    client = _get_tts_client()
-    try:
-        response = await client.post(SARVAM_TTS_URL, headers=headers, json=payload)
-        response.raise_for_status()
-        data = response.json()
-        audios = data.get("audios", [])
-        ms_elapsed = (time.perf_counter() - t0) * 1000
-        logger.info(f"Sarvam TTS OK | lang={target_language_code} | ms={ms_elapsed:.0f}")
-        
-        result = {
-            "audio_base64": audios[0] if audios else "",
-            "language_code": target_language_code,
-            "ms_elapsed": round(ms_elapsed, 2)
-        }
-        if audios and len(_TTS_CACHE) < 500:
-            _TTS_CACHE[cache_key] = result
-        return result
-    except Exception as e:
-        logger.warning(f"Sarvam TTS Error: {e}")
-        raise HTTPException(status_code=500, detail=f"TTS synthesis error: {str(e)}")

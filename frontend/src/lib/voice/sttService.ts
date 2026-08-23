@@ -128,9 +128,13 @@ export async function submitSTT(opts: STTSubmitOptions): Promise<STTResult> {
     return submitTextFallback(fallbackTranscript.trim(), language, apiBase);
   }
 
-  // 2. Build FormData
+  // 2. Build FormData with clean MIME type (strip any ;codecs=opus params)
+  const cleanMime = (blob.type || "").split(";")[0].trim().toLowerCase() || "audio/webm";
+  const cleanBlob = blob.type !== cleanMime ? new Blob([blob], { type: cleanMime }) : blob;
+  const filename = getFilenameForBlob(blob);
+
   const formData = new FormData();
-  formData.append("audio_file", blob, getFilenameForBlob(blob));
+  formData.append("audio_file", cleanBlob, filename);
   if (fallbackTranscript.trim()) {
     formData.append("fallback_transcript", fallbackTranscript.trim());
   }

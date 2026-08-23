@@ -6,7 +6,8 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
 from loguru import logger
 
 from app.schemas import STTResponse, QueryResponse
-from app.stt.transcribe import transcribe_audio, synthesize_speech
+from app.stt.transcribe import transcribe_audio
+from app.tts.synthesize import synthesize_speech
 from app.pipeline.orchestrator import process_query
 from fastapi import UploadFile
 
