@@ -84,7 +84,7 @@ async def voice_websocket_endpoint(
                     stt_lang = requested_lang if requested_lang and requested_lang not in ("unknown", "auto") else "unknown"
                     detected_lang = requested_lang or "unknown"
 
-                    if len(audio_buffer) > 500:
+                    if len(audio_buffer) > 50:
                         try:
                             # Wrap buffer in mock UploadFile
                             mock_file = StreamingAudioUploadFile(bytes(audio_buffer))
