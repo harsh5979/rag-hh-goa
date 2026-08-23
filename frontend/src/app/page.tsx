@@ -6,6 +6,7 @@ import { useVoiceQuery } from "@/lib/hooks/useVoiceQuery";
 import { useTextQuery } from "@/lib/hooks/useTextQuery";
 import PixelCanvas from "@/components/ui/PixelCanvas";
 import type { PipelineResponse } from "@/lib/api/types";
+import type { IndicLanguageCode } from "@/lib/voice/types";
 import { getIndicDisplayPreview, detectLanguageClient, isIndicScript } from "@/lib/utils/indicDetector";
 
 /* ━━━━━━━━━━━━━━━━━━━━ THEME TOKENS ━━━━━━━━━━━━━━━━━━━━ */
