@@ -2,9 +2,10 @@ import React from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils/cn";
 import type { RecorderState } from "@/lib/hooks/useVoiceRecorder";
+import type { VoiceState } from "@/lib/voice/types";
 
 interface MicOrbProps {
-  state: RecorderState;
+  state: VoiceState | RecorderState;
   onToggle: () => void;
   liveTranscript?: string;
   disabled?: boolean;
@@ -22,8 +23,8 @@ export function MicOrb({
   speechDetected = false,
   silenceCountdown = null,
 }: MicOrbProps) {
-  const isRecognizing = state === "recognizing";
-  const isProcessing = state === "processing";
+  const isRecognizing = state === "recognizing" || state === "listening" || state === "requesting_permission" || state === "connecting";
+  const isProcessing = state === "processing" || state === "speaking";
 
   // Dynamic scale from audio energy (between 1.0 and 1.35)
   const energyScale = isRecognizing ? 1 + Math.min(0.35, (audioLevel / 255) * 1.5) : 1;

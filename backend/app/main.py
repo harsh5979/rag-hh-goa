@@ -9,7 +9,7 @@ from app.retrieval.vector_db import init_db
 from app.retrieval.rerank import init_reranker
 from app.guardrails.checker import init_guardrails
 from app.generation.generator import init_generator
-from app.api.routes import chat
+from app.api.routes import chat, voice_ws
 
 load_dotenv()
 
@@ -64,6 +64,8 @@ app.add_middleware(
 # Mount Routes - mount at both /api and root to prevent any 404 routing mismatches
 app.include_router(chat.router, prefix="/api")
 app.include_router(chat.router, prefix="")
+app.include_router(voice_ws.router, prefix="/api")
+app.include_router(voice_ws.router, prefix="")
 
 @app.get("/health")
 def health_check():

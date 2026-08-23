@@ -7,9 +7,10 @@
 import React, { useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { RecorderState } from "@/lib/hooks/useVoiceRecorder";
+import type { VoiceState } from "@/lib/voice/types";
 
 interface VoiceOrbProps {
-  state: RecorderState;
+  state: VoiceState | RecorderState;
   onToggle: () => void;
   audioLevel?: number;
   speechDetected?: boolean;
@@ -42,8 +43,8 @@ export function VoiceOrb({
   const rafRef    = useRef<number>(0);
   const tRef      = useRef<number>(0);
 
-  const isRecognizing = state === "recognizing";
-  const isProcessing  = state === "processing";
+  const isRecognizing = state === "recognizing" || state === "listening" || state === "requesting_permission" || state === "connecting";
+  const isProcessing  = state === "processing" || state === "speaking";
   const isActive      = isRecognizing || isProcessing;
   const energy        = Math.min(1, audioLevel / 200);
 
