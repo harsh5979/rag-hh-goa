@@ -4,7 +4,16 @@ import type { PipelineResponse } from "./types";
 export const audioApi = {
   async sendAudioQuery(audioBlob: Blob, fallbackTranscript?: string, language?: string): Promise<PipelineResponse> {
     const formData = new FormData();
-    formData.append("audio_file", audioBlob, "recording.webm");
+    const mime = audioBlob.type || "";
+    let filename = "recording.webm";
+    if (mime.includes("mp4") || mime.includes("m4a") || mime.includes("aac")) {
+      filename = "recording.mp4";
+    } else if (mime.includes("wav")) {
+      filename = "recording.wav";
+    } else if (mime.includes("ogg")) {
+      filename = "recording.ogg";
+    }
+    formData.append("audio_file", audioBlob, filename);
     if (fallbackTranscript && fallbackTranscript.trim()) {
       formData.append("fallback_transcript", fallbackTranscript.trim());
     }

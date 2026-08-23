@@ -35,8 +35,8 @@ export class AudioStreamer {
       sampleRate: options.sampleRate ?? 16000,
       channelCount: options.channelCount ?? 1,
       chunkDurationMs: options.chunkDurationMs ?? 250,
-      energyThreshold: options.energyThreshold ?? 6,
-      silenceThresholdMs: options.silenceThresholdMs ?? 1000,
+      energyThreshold: options.energyThreshold ?? 3.5,
+      silenceThresholdMs: options.silenceThresholdMs ?? 1800,
       maxRecordingMs: options.maxRecordingMs ?? 15000,
       onAudioChunk: options.onAudioChunk ?? (() => {}),
       onAudioLevel: options.onAudioLevel ?? (() => {}),
@@ -198,6 +198,9 @@ export class AudioStreamer {
           finishCleanup();
         };
         try {
+          if (this.mediaRecorder.state === "recording") {
+            this.mediaRecorder.requestData();
+          }
           this.mediaRecorder.stop();
         } catch {
           finishCleanup();
@@ -271,7 +274,7 @@ export class AudioStreamer {
         this.options.onSpeechDetected(true);
       } else if (this.hasSpoken && this.lastSpeechTimestamp > 0) {
         const silenceMs = now - this.lastSpeechTimestamp;
-        if (silenceMs >= this.options.silenceThresholdMs && now - this.startTime > 800) {
+        if (silenceMs >= this.options.silenceThresholdMs && now - this.startTime > 1400) {
           this.options.onSpeechDetected(false);
           this.options.onSilenceTimeout();
         }

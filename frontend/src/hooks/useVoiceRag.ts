@@ -19,8 +19,8 @@ import { useAnalyticsStore } from "@/store/analyticsStore";
 export function useVoiceRag(config: VoiceConfig = {}) {
   const {
     language: initialLanguage = "en-IN",
-    silenceThresholdMs = 1200,
-    energyThreshold = 10,
+    silenceThresholdMs = 1800,
+    energyThreshold = 3.5,
     autoSpeak = true,
     speaker = "anushka",
     onTranscript,
