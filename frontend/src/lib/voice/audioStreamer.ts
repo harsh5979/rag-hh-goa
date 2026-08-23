@@ -74,11 +74,9 @@ export class AudioStreamer {
     this.audioChunks = [];
 
     try {
-      // 1. Request hardware microphone with noise suppression & 16kHz mono constraints
+      // 1. Request hardware microphone with noise suppression & cross-platform acoustic constraints
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
-          channelCount: this.options.channelCount,
-          sampleRate: this.options.sampleRate,
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true,
