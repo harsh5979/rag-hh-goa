@@ -9,8 +9,8 @@ import {
   type VoiceState,
   type VoiceConfig,
   type VoiceError,
-  type VoiceStreamTimings,
 } from "@/lib/voice";
+import { detectDeviceCategory } from "@/lib/voice/mimeHelper";
 import type { PipelineResponse } from "@/lib/api/types";
 import { audioApi } from "@/lib/api/audioApi";
 import { queryApi } from "@/lib/api/queryApi";
@@ -325,8 +325,9 @@ function detectScriptLanguage(text: string, fallbackLang: IndicLanguageCode = "e
       // Initiate background connection (non-blocking)
       wsClient.connect().catch(() => {});
 
-        // 2. Start Live Browser SpeechRecognition for instant live input feedback
-        if (typeof window !== "undefined") {
+        // 2. Start Live Browser SpeechRecognition for instant desktop feedback (Desktop only — disabled on mobile/Android to prevent hardware mic conflict)
+        const isDesktop = detectDeviceCategory() === "desktop";
+        if (isDesktop && typeof window !== "undefined") {
           const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
           if (SpeechRec) {
             try {
