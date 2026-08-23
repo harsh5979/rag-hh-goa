@@ -805,7 +805,7 @@ export default function VoiceRagPage() {
                   )}
                 </button>
 
-                {/* Text input */}
+                {/* Text input with dynamic real-time voice feedback */}
                 <input
                   ref={inputRef}
                   type="text"
@@ -813,7 +813,9 @@ export default function VoiceRagPage() {
                   onChange={(e) => setInputVal(e.target.value)}
                   placeholder={
                     isVoiceActive
-                      ? `Listening... speak in ${selectedLang === "gu-IN" ? "Gujarati (ગુજરાતી)" : selectedLang === "hi-IN" ? "Hindi (हिन्दी)" : "any language"}`
+                      ? voice.speechDetected
+                        ? "🎙️ Voice detected... listening (speak your question)"
+                        : `🔴 Listening... speak in ${selectedLang === "gu-IN" ? "Gujarati (ગુજરાતી)" : selectedLang === "hi-IN" ? "Hindi (हिन्दी)" : "any language"}`
                       : selectedLang === "gu-IN"
                         ? "ગુજરાતીમાં પ્રશ્ન પૂછો અથવા બોલવા માટે માઇક પર ક્લિક કરો..."
                         : selectedLang === "hi-IN"
@@ -826,10 +828,11 @@ export default function VoiceRagPage() {
                     background: "transparent",
                     border: "none",
                     outline: "none",
-                    color: isVoiceActive ? "#E2E8F0" : T.textMain,
+                    color: isVoiceActive ? (voice.speechDetected ? "#38BDF8" : "#E2E8F0") : T.textMain,
                     fontSize: 13.5,
                     fontFamily: "inherit",
-                    fontWeight: isVoiceActive ? 500 : 400,
+                    fontWeight: isVoiceActive ? 600 : 400,
+                    transition: "color 0.2s ease",
                   }}
                 />
 
@@ -876,12 +879,12 @@ export default function VoiceRagPage() {
                 </button>
               </div>
 
-              {/* Dynamic Live Audio Equalizer & Auto-Stop Status */}
+              {/* Dynamic Live Audio Equalizer & Real-Time Status Bar */}
               {isVoiceActive && (
                 <motion.div
-                  initial={{ opacity: 0, y: -4 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -4 }}
+                  initial={{ opacity: 0, y: -4, scale: 0.98 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -4, scale: 0.98 }}
                   style={{
                     display: "flex",
                     alignItems: "center",
@@ -890,136 +893,200 @@ export default function VoiceRagPage() {
                     padding: "7px 12px",
                     background: "rgba(10, 16, 28, 0.95)",
                     backdropFilter: "blur(16px)",
-                    border: "1px solid rgba(108, 99, 255, 0.3)",
+                    border: `1px solid ${voice.speechDetected ? "rgba(16, 185, 129, 0.5)" : "rgba(108, 99, 255, 0.4)"}`,
                     borderRadius: 8,
-                    boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+                    boxShadow: voice.speechDetected
+                      ? "0 8px 24px rgba(16, 185, 129, 0.25)"
+                      : "0 8px 24px rgba(108, 99, 255, 0.2)",
+                    transition: "all 0.2s ease",
                   }}
                 >
                   <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-                    {/* Frequency Bars */}
-                    <div style={{ display: "flex", alignItems: "center", gap: 3, height: 14 }}>
-                      {[0.5, 1.2, 0.7, 1.4, 0.9, 1.3, 0.6].map((f, i) => (
-                        <div
-                          key={i}
-                          style={{
-                            width: 3,
-                            height: Math.max(3, Math.min(14, (voice.audioLevel || 8) * f * 0.22)),
-                            background: "linear-gradient(180deg, #6C63FF 0%, #00D4FF 100%)",
-                            borderRadius: 2,
-                            transition: "height 0.08s ease",
-                          }}
-                        />
-                      ))}
+                    {/* Live Equalizer Frequency Bars */}
+                    <div style={{ display: "flex", alignItems: "center", gap: 3, height: 16 }}>
+                      {[0.6, 1.4, 0.8, 1.6, 1.0, 1.5, 0.7, 1.2].map((f, i) => {
+                        const lvl = voice.audioLevel || (voice.speechDetected ? 20 : 6);
+                        const h = Math.max(3, Math.min(16, lvl * f * 0.24));
+                        return (
+                          <div
+                            key={i}
+                            style={{
+                              width: 3,
+                              height: h,
+                              background: voice.speechDetected
+                                ? "linear-gradient(180deg, #34D399 0%, #10B981 100%)"
+                                : "linear-gradient(180deg, #818CF8 0%, #38BDF8 100%)",
+                              borderRadius: 2,
+                              transition: "height 0.07s ease, background 0.2s ease",
+                            }}
+                          />
+                        );
+                      })}
                     </div>
-                    <span style={{ fontSize: 11.5, color: T.textMain, fontWeight: 600 }}>
-                      Listening...
-                    </span>
-                    <span style={{ fontSize: 10.5, color: T.textMuted, fontStyle: "italic" }}>
-                      Auto-detects speech & stops automatically
-                    </span>
+
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      {voice.speechDetected ? (
+                        <span style={{
+                          fontSize: 10,
+                          fontFamily: "monospace",
+                          fontWeight: 800,
+                          color: T.emeraldLight,
+                          background: "rgba(16, 185, 129, 0.2)",
+                          border: "1px solid rgba(16, 185, 129, 0.4)",
+                          padding: "1px 6px",
+                          borderRadius: 4,
+                          letterSpacing: 0.5,
+                        }}>
+                          ● SPEECH ACTIVE
+                        </span>
+                      ) : (
+                        <span style={{
+                          fontSize: 10,
+                          fontFamily: "monospace",
+                          fontWeight: 700,
+                          color: T.textMuted,
+                          background: "rgba(255,255,255,0.05)",
+                          padding: "1px 6px",
+                          borderRadius: 4,
+                        }}>
+                          LISTENING
+                        </span>
+                      )}
+                      <span className="hidden sm:inline" style={{ fontSize: 11, color: T.textSec, fontStyle: "italic" }}>
+                        Auto-detects speech & stops automatically
+                      </span>
+                    </div>
                   </div>
 
                   <button
                     type="button"
                     onClick={voice.stopRecording}
                     style={{
-                      background: "rgba(239,68,68,0.18)",
-                      border: "1px solid rgba(239,68,68,0.4)",
+                      background: "rgba(239,68,68,0.2)",
+                      border: "1px solid rgba(239,68,68,0.5)",
                       borderRadius: 6,
-                      padding: "3px 9px",
-                      fontSize: 10.5,
+                      padding: "4px 10px",
+                      fontSize: 11,
                       fontFamily: "monospace",
-                      color: "#F87171",
+                      color: "#FCA5A5",
                       cursor: "pointer",
                       fontWeight: 700,
                       display: "flex",
                       alignItems: "center",
-                      gap: 4,
+                      gap: 5,
+                      boxShadow: "0 2px 8px rgba(239, 68, 68, 0.25)",
+                      transition: "all 0.15s ease",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = "rgba(239,68,68,0.35)";
+                      e.currentTarget.style.color = "#FFFFFF";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = "rgba(239,68,68,0.2)";
+                      e.currentTarget.style.color = "#FCA5A5";
                     }}
                   >
-                    <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#EF4444" }} />
+                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#EF4444" }} className="animate-pulse" />
                     Done Speaking ↵
                   </button>
                 </motion.div>
               )}
             </form>
 
-            {/* ─── Suggestion Chips (Organized & Multilingual) ─── */}
+            {/* ─── Suggestion Chips (Clean 2-Chip Default + Organized Expand) ─── */}
             <div style={{
               display: "flex",
-              flexWrap: "wrap",
-              justifyContent: "center",
+              flexDirection: "column",
               alignItems: "center",
-              gap: 6,
+              gap: 8,
               maxWidth: 600,
               margin: "0 auto",
+              width: "100%",
             }}>
-              {(showAllSuggestions ? SUGGESTIONS : SUGGESTIONS.slice(0, 3)).map((item) => (
+              <div style={{
+                display: "flex",
+                flexWrap: "wrap",
+                justifyContent: "center",
+                alignItems: "center",
+                gap: 6,
+                width: "100%",
+              }}>
+                {(showAllSuggestions ? SUGGESTIONS : SUGGESTIONS.slice(0, 2)).map((item) => (
+                  <button
+                    key={item.lang + item.label}
+                    type="button"
+                    onClick={() => submit(item.query, item.langCode)}
+                    style={{
+                      background: "rgba(255,255,255,0.03)",
+                      border: `1px solid ${T.glassBdr}`,
+                      borderRadius: 6,
+                      padding: "5px 10px",
+                      fontSize: 11.5,
+                      color: T.textSec,
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 6,
+                      transition: "all 0.15s ease",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.borderColor = T.brandBdr;
+                      e.currentTarget.style.color = T.textMain;
+                      e.currentTarget.style.background = "rgba(108,99,255,0.08)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.borderColor = T.glassBdr;
+                      e.currentTarget.style.color = T.textSec;
+                      e.currentTarget.style.background = "rgba(255,255,255,0.03)";
+                    }}
+                  >
+                    <span style={{
+                      fontSize: 9,
+                      fontFamily: "monospace",
+                      padding: "1px 4px",
+                      borderRadius: 3,
+                      fontWeight: 700,
+                      background: item.lang === "HI" ? "rgba(245,158,11,0.15)" : item.lang === "GU" ? "rgba(16,185,129,0.15)" : item.lang === "TA" || item.lang === "TE" ? "rgba(56,189,248,0.15)" : "rgba(108,99,255,0.15)",
+                      color: item.lang === "HI" ? T.warning : item.lang === "GU" ? T.success : item.lang === "TA" || item.lang === "TE" ? T.accent : T.brandLight,
+                      border: `1px solid ${item.lang === "HI" ? "rgba(245,158,11,0.3)" : item.lang === "GU" ? "rgba(16,185,129,0.3)" : "rgba(108,99,255,0.3)"}`,
+                    }}>
+                      {item.lang}
+                    </span>
+                    <span>{item.label}</span>
+                  </button>
+                ))}
+
+                {/* Expand / Collapse Button */}
                 <button
-                  key={item.lang + item.label}
                   type="button"
-                  onClick={() => submit(item.query, item.langCode)}
+                  onClick={() => setShowAllSuggestions((v) => !v)}
                   style={{
-                    background: "rgba(255,255,255,0.03)",
-                    border: `1px solid ${T.glassBdr}`,
+                    background: showAllSuggestions ? "rgba(108,99,255,0.18)" : "rgba(108,99,255,0.08)",
+                    border: `1px solid ${T.brandBdr}`,
                     borderRadius: 6,
-                    padding: "5px 9px",
-                    fontSize: 11.5,
-                    color: T.textSec,
+                    padding: "5px 10px",
+                    fontSize: 11,
+                    fontFamily: "monospace",
+                    color: T.brandLight,
                     cursor: "pointer",
                     display: "flex",
                     alignItems: "center",
-                    gap: 6,
+                    gap: 4,
+                    fontWeight: 700,
                     transition: "all 0.15s ease",
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.borderColor = T.brandBdr;
-                    e.currentTarget.style.color = T.textMain;
-                    e.currentTarget.style.background = "rgba(108,99,255,0.08)";
+                    e.currentTarget.style.background = "rgba(108,99,255,0.22)";
+                    e.currentTarget.style.color = "#FFFFFF";
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.borderColor = T.glassBdr;
-                    e.currentTarget.style.color = T.textSec;
-                    e.currentTarget.style.background = "rgba(255,255,255,0.03)";
+                    e.currentTarget.style.background = showAllSuggestions ? "rgba(108,99,255,0.18)" : "rgba(108,99,255,0.08)";
+                    e.currentTarget.style.color = T.brandLight;
                   }}
                 >
-                  <span style={{
-                    fontSize: 9,
-                    fontFamily: "monospace",
-                    padding: "1px 4px",
-                    borderRadius: 3,
-                    fontWeight: 700,
-                    background: item.lang === "HI" ? "rgba(245,158,11,0.15)" : item.lang === "GU" ? "rgba(16,185,129,0.15)" : item.lang === "TA" || item.lang === "TE" ? "rgba(56,189,248,0.15)" : "rgba(108,99,255,0.15)",
-                    color: item.lang === "HI" ? T.warning : item.lang === "GU" ? T.success : item.lang === "TA" || item.lang === "TE" ? T.accent : T.brandLight,
-                    border: `1px solid ${item.lang === "HI" ? "rgba(245,158,11,0.3)" : item.lang === "GU" ? "rgba(16,185,129,0.3)" : "rgba(108,99,255,0.3)"}`,
-                  }}>
-                    {item.lang}
-                  </span>
-                  <span>{item.label}</span>
+                  <span>{showAllSuggestions ? "▴ Show Less" : `+${SUGGESTIONS.length - 2} Indic Languages ▾`}</span>
                 </button>
-              ))}
-
-              {/* Expand / Collapse Button */}
-              <button
-                type="button"
-                onClick={() => setShowAllSuggestions((v) => !v)}
-                style={{
-                  background: "rgba(108,99,255,0.08)",
-                  border: `1px solid ${T.brandBdr}`,
-                  borderRadius: 6,
-                  padding: "5px 10px",
-                  fontSize: 11,
-                  fontFamily: "monospace",
-                  color: T.brandLight,
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 4,
-                  fontWeight: 600,
-                }}
-              >
-                <span>{showAllSuggestions ? "▴ less" : `+${SUGGESTIONS.length - 3} Indic Languages ▾`}</span>
-              </button>
+              </div>
             </div>
 
             {/* ─── Inline Result Card ─── */}
