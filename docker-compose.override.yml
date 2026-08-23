@@ -29,6 +29,9 @@ services:
       - /app/node_modules                 # preserve container node_modules
       - /app/.next
     command: npm run dev
+    depends_on:
+      backend:
+        condition: service_started
     environment:
       - NEXT_PUBLIC_API_URL=http://localhost:8000
       - NODE_ENV=development

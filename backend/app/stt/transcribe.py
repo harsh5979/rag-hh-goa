@@ -6,14 +6,25 @@ from fastapi import UploadFile, HTTPException
 
 from app.config import get_settings
 from app.schemas import STTResponse
+from app.language import (
+    detect_language,
+    is_indic_script,
+    transliterate_indic_text,
+    get_language_detector,
+)
 
-SARVAM_STT_URL = "https://api.sarvam.ai/speech-to-text-translate"
+SARVAM_STT_URL = "https://api.sarvam.ai/speech-to-text"
+SARVAM_STT_TRANSLATE_URL = "https://api.sarvam.ai/speech-to-text-translate"
 SARVAM_TTS_URL = "https://api.sarvam.ai/text-to-speech"
 
-async def transcribe_audio(audio_file: UploadFile) -> STTResponse:
+
+async def transcribe_audio(
+    audio_file: UploadFile,
+    language_code: Optional[str] = None,
+    translate_to_en: bool = False
+) -> STTResponse:
     """
-    Calls Sarvam AI STT Translation API to convert Indic/English speech to English text.
-    Uses exponential backoff for reliability.
+    Calls Sarvam AI STT API (saaras:v2.5) to convert Indic/English speech to accurate native text.
     """
     t0 = time.perf_counter()
     settings = get_settings()
@@ -25,25 +36,29 @@ async def transcribe_audio(audio_file: UploadFile) -> STTResponse:
         "api-subscription-key": settings.sarvam_api_key
     }
     
-    # Read file content safely
     content = await audio_file.read()
     await audio_file.seek(0)
     
     files = {
-        "file": (audio_file.filename or "audio.wav", content, audio_file.content_type or "audio/wav")
+        "file": (audio_file.filename or "recording.webm", content, audio_file.content_type or "audio/webm")
     }
 
-    # API parameters
+    url = SARVAM_STT_TRANSLATE_URL if translate_to_en else SARVAM_STT_URL
+
     data = {
-        "model": "saaras:v2.5"
+        "model": "saarika:v2.5"
     }
+    if language_code and language_code != "unknown":
+        data["language_code"] = language_code
+    elif not translate_to_en:
+        data["language_code"] = "unknown"
 
     async with httpx.AsyncClient(timeout=15.0) as client:
         try:
-            logger.debug(f"Calling Sarvam STT for {audio_file.filename} ({len(content)} bytes)")
+            logger.debug(f"Calling Sarvam STT ({len(content)} bytes, lang={data.get('language_code')})")
             
             response = await client.post(
-                SARVAM_STT_URL,
+                url,
                 headers=headers,
                 files=files,
                 data=data
@@ -51,20 +66,27 @@ async def transcribe_audio(audio_file: UploadFile) -> STTResponse:
             response.raise_for_status()
             result = response.json()
             
-            transcript = result.get("transcript", "")
+            transcript = result.get("transcript", "").strip()
+            detected_lang = result.get("language_code", language_code or "en")
+
+            # Ensure native script for Indic queries
+            if transcript and not is_indic_script(transcript):
+                target_lang = detected_lang if detected_lang not in ("unknown", "en", "en-IN") else None
+                transcript = await transliterate_indic_text(transcript, target_lang)
+                detected_lang = detect_language(transcript, default=detected_lang)
             
             ms_elapsed = (time.perf_counter() - t0) * 1000
-            logger.info(f"STT Success | ms={ms_elapsed:.0f} | transcript='{transcript[:30]}...'")
+            logger.info(f"STT Success | ms={ms_elapsed:.0f} | lang={detected_lang} | transcript='{transcript[:40]}...'")
             
             return STTResponse(
                 transcript=transcript.strip(),
                 confidence=0.95,
-                language="en",
+                language=detected_lang,
                 ms_elapsed=round(ms_elapsed, 2)
             )
             
         except httpx.HTTPStatusError as e:
-            logger.error(f"Sarvam API Error: {e.response.status_code} - {e.response.text}")
+            logger.error(f"Sarvam STT API Error: {e.response.status_code} - {e.response.text}")
             raise HTTPException(status_code=502, detail="Speech-to-Text provider error")
         except Exception as e:
             logger.exception("STT Request failed")

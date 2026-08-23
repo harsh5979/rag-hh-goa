@@ -1,4 +1,5 @@
 import time
+from typing import Optional, List, Dict
 from loguru import logger
 
 from app.schemas import QueryResponse, SourceChunk, GuardrailResult
@@ -16,7 +17,12 @@ _QUERY_CACHE: dict[str, QueryResponse] = {}
 _MAX_CACHE_SIZE = 500
 
 
-async def process_query(query: str, ms_stt: float = 0.0, is_voice: bool = False) -> QueryResponse:
+async def process_query(
+    query: str,
+    ms_stt: float = 0.0,
+    is_voice: bool = False,
+    detected_lang: Optional[str] = None
+) -> QueryResponse:
     """
     Main orchestration pipeline for a user query.
     1. Check query cache (sub-5ms instant return)
@@ -41,6 +47,9 @@ async def process_query(query: str, ms_stt: float = 0.0, is_voice: bool = False)
             confidence=cached.confidence,
             sources=cached.sources,
             guardrails=cached.guardrails,
+            transcript=query,
+            query=query,
+            language=detected_lang or cached.language,
             ms_stt=ms_stt,
             ms_retrieval=0.5,
             ms_generation=1.0,
@@ -74,6 +83,9 @@ async def process_query(query: str, ms_stt: float = 0.0, is_voice: bool = False)
                 confidence=1.0,
                 sources=[],
                 guardrails=guardrail_results,
+                transcript=query,
+                query=query,
+                language=detected_lang,
                 ms_stt=ms_stt,
                 ms_retrieval=0.0,
                 ms_generation=0.0,
@@ -97,6 +109,9 @@ async def process_query(query: str, ms_stt: float = 0.0, is_voice: bool = False)
             confidence=1.0,
             sources=[],
             guardrails=guardrail_results,
+            transcript=query,
+            query=query,
+            language=detected_lang,
             ms_stt=ms_stt,
             ms_retrieval=0.0,
             ms_generation=0.0,
@@ -160,6 +175,9 @@ async def process_query(query: str, ms_stt: float = 0.0, is_voice: bool = False)
             confidence=0.0,
             sources=sources,
             guardrails=guardrail_results,
+            transcript=query,
+            query=query,
+            language=detected_lang,
             ms_stt=ms_stt,
             ms_retrieval=round(ms_retrieval, 2),
             ms_generation=0.0,
@@ -182,6 +200,9 @@ async def process_query(query: str, ms_stt: float = 0.0, is_voice: bool = False)
         confidence=gen_result.confidence,
         sources=sources,
         guardrails=guardrail_results,
+        transcript=query,
+        query=query,
+        language=detected_lang,
         ms_stt=round(ms_stt, 2),
         ms_retrieval=round(ms_retrieval, 2),
         ms_generation=round(ms_generation, 2),

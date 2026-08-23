@@ -6,6 +6,7 @@ import { useVoiceQuery } from "@/lib/hooks/useVoiceQuery";
 import { useTextQuery } from "@/lib/hooks/useTextQuery";
 import PixelCanvas from "@/components/ui/PixelCanvas";
 import type { PipelineResponse } from "@/lib/api/types";
+import { getIndicDisplayPreview, detectLanguageClient, isIndicScript } from "@/lib/utils/indicDetector";
 
 /* ━━━━━━━━━━━━━━━━━━━━ THEME TOKENS ━━━━━━━━━━━━━━━━━━━━ */
 const T = {
@@ -43,17 +44,17 @@ const LATENCY_BUDGET_MS = 200;
 
 /* Multilingual Domain Suggestion Queries across 11 Indic Languages */
 const SUGGESTIONS = [
-  { lang: "EN", label: "What was the Manhattan Project?", query: "What was the Manhattan Project?" },
-  { lang: "HI", label: "प्रकाश संश्लेषण क्या है?", query: "प्रकाश संश्लेषण क्या है?" },
-  { lang: "GU", label: "સૂર્યમંડળમાં કેટલા ગ્રહો છે?", query: "સૂર્યમંડળમાં કેટલા ગ્રહો છે?" },
-  { lang: "MR", label: "सूर्यमालेत किती मुख्य ग्रह आहेत?", query: "सूर्यमालेत किती मुख्य ग्रह आहेत?" },
-  { lang: "TA", label: "ஒளிச்சேர்க்கை என்றால் என்ன?", query: "ஒளிச்சேர்க்கை என்றால் என்ன?" },
-  { lang: "TE", label: "సూర్య మండలంలో ఎన్ని గ్రహాలు ఉన్నాయి?", query: "సూర్య మండలంలో ఎన్ని గ్రహాలు ఉన్నాయి?" },
-  { lang: "BN", label: "সালোকসংশ্লেষ প্রক্রিয়া কি?", query: "সালোকসংশ্লেষ প্রক্রিয়া কি?" },
-  { lang: "KN", label: "ಸೌರವ್ಯೂಹದಲ್ಲಿ ಎಷ್ಟು ಗ್ರಹಗಳಿವೆ?", query: "ಸೌರವ್ಯೂಹದಲ್ಲಿ ಎಷ್ಟು ಗ್ರಹಗಳಿವೆ?" },
-  { lang: "ML", label: "പ്രകാശസംശ്ലേഷണം എന്നാൽ എന്ത്?", query: "പ്രകാശസംശ്ലേഷണം എന്നാൽ എന്ത്?" },
-  { lang: "PA", label: "ਸੂਰਜੀ ਮੰਡਲ ਵਿੱਚ ਕਿੰਨੇ ਗ੍ਰਹਿ ਹਨ?", query: "ਸੂਰਜੀ ਮੰਡਲ ਵਿੱਚ ਕਿੰਨੇ ਗ੍ਰਹਿ ਹਨ?" },
-  { lang: "OR", label: "ଆଲୋକ ସଂଶ୍ଳେଷଣ କଣ?", query: "ଆଲୋକ ସଂଶ୍ଳେଷଣ କଣ?" },
+  { lang: "GU", langCode: "gu-IN" as const, label: "સૂર્યમંડળમાં કેટલા ગ્રહો છે?", query: "સૂર્યમંડળમાં કેટલા ગ્રહો છે?" },
+  { lang: "HI", langCode: "hi-IN" as const, label: "प्रकाश संश्लेषण क्या है?", query: "प्रकाश संश्लेषण क्या है?" },
+  { lang: "EN", langCode: "en-IN" as const, label: "What was the Manhattan Project?", query: "What was the Manhattan Project?" },
+  { lang: "MR", langCode: "mr-IN" as const, label: "सूर्यमालेत किती मुख्य ग्रह आहेत?", query: "सूर्यमालेत किती मुख्य ग्रह आहेत?" },
+  { lang: "TA", langCode: "ta-IN" as const, label: "ஒளிச்சேர்க்கை என்றால் என்ன?", query: "ஒளிச்சேர்க்கை என்றால் என்ன?" },
+  { lang: "TE", langCode: "te-IN" as const, label: "సూర్య మండలంలో ఎన్ని గ్రహాలు ఉన్నాయి?", query: "సూర్య మండలంలో ఎన్ని గ్రహాలు ఉన్నాయి?" },
+  { lang: "BN", langCode: "bn-IN" as const, label: "সালোকসংশ্লেষ প্রক্রিয়া কি?", query: "সালোকসংশ্লেষ প্রক্রিয়া কি?" },
+  { lang: "KN", langCode: "kn-IN" as const, label: "ಸೌರವ್ಯೂಹದಲ್ಲಿ ಎಷ್ಟು ಗ್ರಹಗಳಿವೆ?", query: "ಸೌರವ್ಯೂಹದಲ್ಲಿ ಎಷ್ಟು ಗ್ರಹಗಳಿವೆ?" },
+  { lang: "ML", langCode: "ml-IN" as const, label: "പ്രകാശസംശ്ലേഷണം എന്നാൽ എന്ത്?", query: "പ്രകാശസംശ്ലേഷണം എന്നാൽ എന്ത്?" },
+  { lang: "PA", langCode: "pa-IN" as const, label: "ਸੂਰਜੀ ਮੰਡਲ ਵਿੱਚ ਕਿੰਨੇ ਗ੍ਰਹਿ ਹਨ?", query: "ਸੂਰਜੀ ਮੰਡਲ ਵਿੱਚ ਕਿੰਨੇ ਗ੍ਰਹਿ ਹਨ?" },
+  { lang: "OR", langCode: "or-IN" as const, label: "ଆଲୋକ ସଂଶ୍ଳେଷଣ କଣ?", query: "ଆଲୋକ ସଂଶ୍ଳେଷଣ କଣ?" },
 ];
 
 /* ━━━━━━━━━━━━━━━━━━━━ SARVAM MANDALA EMBLEM SVG ━━━━━━━━━━━━━━━━━━━━ */
@@ -291,7 +292,31 @@ function InlineResultCard({
   );
 }
 
-function InlineResultCardSkeleton({ query }: { query?: string }) {
+// ── Safe Client-Side Language Detection & Preview Fallbacks ───────────────────
+function safeDetectLanguage(text: string, fallback: IndicLanguageCode = "en-IN"): IndicLanguageCode {
+  try {
+    if (typeof detectLanguageClient === "function") {
+      return detectLanguageClient(text, fallback);
+    }
+  } catch {}
+  return fallback;
+}
+
+function safeIndicPreview(text: string, targetLang?: IndicLanguageCode): string {
+  try {
+    if (typeof getIndicDisplayPreview === "function") {
+      return getIndicDisplayPreview(text, targetLang);
+    }
+  } catch {}
+  return text;
+}
+
+function InlineResultCardSkeleton({ query, targetLang }: { query?: string; targetLang?: IndicLanguageCode }) {
+  const q = query || "";
+  const detectedLang = safeDetectLanguage(q, targetLang || "en-IN");
+  const indicPreview = safeIndicPreview(q, targetLang);
+  const langLabel = detectedLang === "hi-IN" ? "HI" : detectedLang === "gu-IN" ? "GU" : detectedLang === "ta-IN" ? "TA" : detectedLang === "te-IN" ? "TE" : detectedLang.split("-")[0].toUpperCase();
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
@@ -311,19 +336,37 @@ function InlineResultCardSkeleton({ query }: { query?: string }) {
         boxShadow: "0 16px 40px rgba(0, 0, 0, 0.45)",
       }}
     >
-      {/* ─── Top Bar Placeholder ─── */}
+      {/* ─── Top Bar with Live Indic Language Badge ─── */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <div style={{ width: 14, height: 14, background: "rgba(255,255,255,0.1)", borderRadius: "50%" }} className="animate-pulse" />
-          <div style={{ width: 45, height: 12, background: "rgba(255,255,255,0.08)", borderRadius: 4 }} className="animate-pulse" />
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{
+            fontSize: 10,
+            fontFamily: "monospace",
+            fontWeight: 800,
+            padding: "2px 7px",
+            borderRadius: 4,
+            background: detectedLang === "hi-IN" ? "rgba(245,158,11,0.2)" : detectedLang === "gu-IN" ? "rgba(16,185,129,0.2)" : "rgba(108,99,255,0.2)",
+            color: detectedLang === "hi-IN" ? T.warning : detectedLang === "gu-IN" ? T.success : T.brandLight,
+            border: `1px solid ${detectedLang === "hi-IN" ? "rgba(245,158,11,0.4)" : detectedLang === "gu-IN" ? "rgba(16,185,129,0.4)" : "rgba(108,99,255,0.4)"}`,
+          }}>
+            🇮🇳 {langLabel}
+          </span>
+          <span style={{ fontSize: 11, fontFamily: "monospace", color: T.textMuted }}>
+            Real-Time Multilingual Synthesis
+          </span>
         </div>
-        <div style={{ width: 18, height: 18, background: "rgba(255,255,255,0.08)", borderRadius: 3 }} className="animate-pulse" />
       </div>
 
-      {/* ─── Query Echo Skeleton ─── */}
-      {query && (
-        <div style={{ fontSize: 13, color: T.textMuted, fontStyle: "italic" }}>
-          "{query}"
+      {/* ─── Query Echo Skeleton (Instant Native Script Preview) ─── */}
+      {q && (
+        <div style={{
+          borderLeft: `2.5px solid ${detectedLang === "hi-IN" ? T.warning : detectedLang === "gu-IN" ? T.success : T.brandLight}`,
+          paddingLeft: 10,
+          margin: "2px 0",
+        }}>
+          <div style={{ fontSize: 14, color: T.textMain, fontWeight: 600 }}>
+            "{indicPreview || q}"
+          </div>
         </div>
       )}
 
@@ -347,35 +390,79 @@ function InlineResultCardSkeleton({ query }: { query?: string }) {
 export default function VoiceRagPage() {
   const [inputVal, setInputVal] = useState("");
   const [submittedQuery, setSubmittedQuery] = useState("");
+  const [selectedLang, setSelectedLang] = useState<IndicLanguageCode>("auto");
   const [showAllSuggestions, setShowAllSuggestions] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
-  const voice = useVoiceQuery();
+  const voice = useVoiceQuery(selectedLang);
   const text = useTextQuery();
+
+  // Restore persisted language on mount safely
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("voicerag_lang") as IndicLanguageCode;
+      if (saved) {
+        setSelectedLang(saved);
+        voice.setLanguage(saved);
+      }
+    } catch {}
+  }, []);
 
   const isVoiceActive = voice.isRecognizing || voice.recorderState === "recognizing";
   const isLoading = voice.isLoading || text.isLoading;
   const result = voice.result || text.result;
 
-  const submit = useCallback(async (queryToSubmit: string) => {
+  const handleSelectLang = useCallback((lang: IndicLanguageCode) => {
+    setSelectedLang(lang);
+    voice.setLanguage(lang);
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem("voicerag_lang", lang);
+      } catch {}
+    }
+  }, [voice]);
+
+  const submit = useCallback(async (queryToSubmit: string, langCode?: IndicLanguageCode) => {
     const q = queryToSubmit.trim();
     if (!q || isLoading) return;
+
+    if (langCode) {
+      handleSelectLang(langCode);
+    }
+
     setSubmittedQuery(q);
-    setInputVal("");
+    setInputVal(q);
 
     voice.unlockAudio();
     voice.clearResult?.();
 
     const res = await text.search(q);
-    if (res?.answer) {
-      voice.speakAnswer(res.answer);
+    if (res) {
+      const normalizedQuery = res.query || res.transcript;
+      if (normalizedQuery && normalizedQuery !== q) {
+        setSubmittedQuery(normalizedQuery);
+        setInputVal(normalizedQuery);
+      }
+      if (res.answer) {
+        voice.speakAnswer(res.answer, langCode || (res.language as IndicLanguageCode) || selectedLang);
+      }
     }
-  }, [isLoading, text, voice]);
+  }, [isLoading, selectedLang, text, voice, handleSelectLang]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     submit(inputVal);
   };
+
+  const handleToggleVoice = useCallback(() => {
+    if (!isVoiceActive) {
+      setSubmittedQuery("");
+      setInputVal("");
+      text.clearResult();
+      voice.clearResult?.();
+    }
+    voice.toggle();
+  }, [isVoiceActive, text, voice]);
 
   const clearAll = useCallback(() => {
     setInputVal("");
@@ -387,14 +474,41 @@ export default function VoiceRagPage() {
     }
   }, [text, voice]);
 
-  // Sync live microphone transcript into the input bar in real-time
+  // Sync live microphone transcript into the input bar in real-time (when locked to a specific language or native script)
   useEffect(() => {
     if (voice.liveTranscript) {
-      setInputVal(voice.liveTranscript);
+      // If specific language is selected (e.g. Hindi, Gujarati), sync live
+      if (selectedLang !== "auto") {
+        setInputVal(voice.liveTranscript);
+      } else {
+        // In Auto mode, only sync if it already contains native Indic Unicode characters to prevent English flashing
+        const hasIndicScript = /[\u0900-\u0D7F]/.test(voice.liveTranscript);
+        if (hasIndicScript) {
+          setInputVal(voice.liveTranscript);
+        }
+      }
     }
-  }, [voice.liveTranscript]);
+  }, [voice.liveTranscript, selectedLang]);
 
-  const displayQuery = submittedQuery || result?.transcript || voice.liveTranscript || "";
+  // When voice query finishes with high-precision STT transcript, sync to state
+  useEffect(() => {
+    if (voice.result) {
+      const q = voice.result.transcript || voice.result.query || voice.liveTranscript;
+      if (q) {
+        setSubmittedQuery(q);
+        setInputVal(q);
+      }
+    }
+  }, [voice.result, voice.liveTranscript]);
+
+  const displayQuery = (
+    result?.transcript ||
+    result?.query ||
+    submittedQuery ||
+    voice.liveTranscript ||
+    inputVal ||
+    ""
+  ).trim();
 
   return (
     <div style={{
@@ -548,45 +662,134 @@ export default function VoiceRagPage() {
               </p>
             </div>
 
-            {/* ─── Search & Voice Input Box ─── */}
+            {/* ─── Language Quick Switcher Bar (Gujarati, Hindi, English, Auto) ─── */}
+            <div style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 6,
+              background: "rgba(11, 15, 25, 0.8)",
+              border: `1px solid ${T.glassBdr}`,
+              borderRadius: 10,
+              padding: "5px 8px",
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 5, overflowX: "auto" }}>
+                {[
+                  { code: "auto" as const, label: "🌐 Auto" },
+                  { code: "gu-IN" as const, label: "🇮🇳 ગુજરાતી" },
+                  { code: "hi-IN" as const, label: "🇮🇳 हिन्दी" },
+                  { code: "en-IN" as const, label: "🇬🇧 English" },
+                ].map((l) => {
+                  const isActive = selectedLang === l.code;
+                  return (
+                    <button
+                      key={l.code}
+                      type="button"
+                      onClick={() => handleSelectLang(l.code)}
+                      style={{
+                        background: isActive ? "rgba(108, 99, 255, 0.25)" : "transparent",
+                        border: `1px solid ${isActive ? T.brandLight : "transparent"}`,
+                        color: isActive ? "#FFFFFF" : T.textMuted,
+                        borderRadius: 6,
+                        padding: "3px 8px",
+                        fontSize: 11,
+                        fontFamily: "inherit",
+                        cursor: "pointer",
+                        fontWeight: isActive ? 700 : 500,
+                        transition: "all 0.15s ease",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {l.label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Dropdown for other Indic languages */}
+              <select
+                value={selectedLang}
+                onChange={(e) => handleSelectLang(e.target.value as IndicLanguageCode)}
+                aria-label="Select target language"
+                style={{
+                  background: "rgba(14, 19, 31, 0.95)",
+                  border: `1px solid ${T.glassBdr}`,
+                  color: T.textSec,
+                  borderRadius: 6,
+                  padding: "3px 6px",
+                  fontSize: 10.5,
+                  outline: "none",
+                  cursor: "pointer",
+                  maxWidth: 140,
+                }}
+              >
+                <option value="auto">🌐 Auto-Detect</option>
+                <option value="gu-IN">🇮🇳 ગુજરાતી (Gujarati)</option>
+                <option value="hi-IN">🇮🇳 हिन्दी (Hindi)</option>
+                <option value="en-IN">🇬🇧 English</option>
+                <option value="mr-IN">🇮🇳 मराठी (Marathi)</option>
+                <option value="ta-IN">🇮🇳 தமிழ் (Tamil)</option>
+                <option value="te-IN">🇮🇳 తెలుగు (Telugu)</option>
+                <option value="bn-IN">🇮🇳 বাংলা (Bengali)</option>
+                <option value="kn-IN">🇮🇳 ಕನ್ನಡ (Kannada)</option>
+                <option value="ml-IN">🇮🇳 മലയാളം (Malayalam)</option>
+                <option value="pa-IN">🇮🇳 ਪੰਜਾਬੀ (Punjabi)</option>
+                <option value="or-IN">🇮🇳 ଓଡ଼ିଆ (Odia)</option>
+              </select>
+            </div>
+
+            {/* ─── Search & Voice Input Box (100% Auto-Language Recognition) ─── */}
             <form onSubmit={handleSubmit} style={{ width: "100%" }}>
               <div style={{
                 position: "relative",
                 display: "flex",
                 alignItems: "center",
                 background: T.bgInput,
-                border: `1.5px solid ${isVoiceActive ? T.brand : T.glassBdr}`,
-                borderRadius: 8,
-                padding: "6px 8px 6px 10px",
-                boxShadow: isVoiceActive ? `0 0 20px ${T.brandGlow}` : "0 4px 18px rgba(0,0,0,0.3)",
-                transition: "all 0.2s",
+                border: `1.5px solid ${isVoiceActive ? "rgba(239,68,68,0.7)" : T.glassBdr}`,
+                borderRadius: 12,
+                padding: "8px 10px",
+                boxShadow: isVoiceActive ? "0 0 24px rgba(239, 68, 68, 0.25), inset 0 0 12px rgba(239, 68, 68, 0.08)" : "0 4px 18px rgba(0,0,0,0.3)",
+                transition: "all 0.25s ease",
               }}>
-                {/* Voice Mic Button (Standard SVG) */}
+                {/* Voice Mic / Glowing Stop Button */}
                 <button
                   type="button"
-                  onClick={voice.toggle}
+                  onClick={handleToggleVoice}
                   aria-label="Toggle voice recording"
-                  title={isVoiceActive ? "Stop voice recording" : "Click to speak in any language"}
+                  title={isVoiceActive ? "Click to stop recording" : `Click to speak (${selectedLang === "auto" ? "Auto-detect language" : selectedLang})`}
                   style={{
-                    background: isVoiceActive ? "rgba(239,68,68,0.2)" : "rgba(108,99,255,0.12)",
-                    border: `1px solid ${isVoiceActive ? T.danger : T.brandBdr}`,
-                    borderRadius: 6,
-                    width: 32,
-                    height: 32,
+                    position: "relative",
+                    background: isVoiceActive
+                      ? "linear-gradient(135deg, #EF4444 0%, #B91C1C 100%)"
+                      : "linear-gradient(135deg, rgba(108,99,255,0.25) 0%, rgba(108,99,255,0.1) 100%)",
+                    border: `1.5px solid ${isVoiceActive ? "#FCA5A5" : T.brandBdr}`,
+                    borderRadius: "50%",
+                    width: 36,
+                    height: 36,
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
                     cursor: "pointer",
-                    marginRight: 8,
-                    transition: "all 0.2s",
+                    marginRight: 10,
+                    transition: "all 0.25s ease",
                     flexShrink: 0,
-                    color: isVoiceActive ? T.danger : T.brandLight,
+                    color: isVoiceActive ? "#FFFFFF" : T.brandLight,
+                    boxShadow: isVoiceActive ? "0 0 16px rgba(239, 68, 68, 0.6)" : "0 2px 8px rgba(108, 99, 255, 0.15)",
                   }}
                 >
                   {isVoiceActive ? (
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                      <rect x="5" y="5" width="14" height="14" rx="2" />
-                    </svg>
+                    <>
+                      <span className="animate-ping" style={{
+                        position: "absolute",
+                        inset: -3,
+                        borderRadius: "50%",
+                        border: "2px solid rgba(239, 68, 68, 0.6)",
+                        pointerEvents: "none",
+                      }} />
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+                        <rect x="5" y="5" width="14" height="14" rx="2.5" />
+                      </svg>
+                    </>
                   ) : (
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
@@ -603,16 +806,25 @@ export default function VoiceRagPage() {
                   type="text"
                   value={inputVal}
                   onChange={(e) => setInputVal(e.target.value)}
-                  placeholder={isVoiceActive ? "Listening to your voice..." : "Ask a question in any language..."}
+                  placeholder={
+                    isVoiceActive
+                      ? `Listening... speak in ${selectedLang === "gu-IN" ? "Gujarati (ગુજરાતી)" : selectedLang === "hi-IN" ? "Hindi (हिन्दी)" : "any language"}`
+                      : selectedLang === "gu-IN"
+                        ? "ગુજરાતીમાં પ્રશ્ન પૂછો અથવા બોલવા માટે માઇક પર ક્લિક કરો..."
+                        : selectedLang === "hi-IN"
+                          ? "हिन्दी में प्रश्न पूछें या बोलने के लिए माइक पर क्लिक करें..."
+                          : "Ask any question in any language or click mic to speak..."
+                  }
                   disabled={isLoading}
                   style={{
                     flex: 1,
                     background: "transparent",
                     border: "none",
                     outline: "none",
-                    color: T.textMain,
-                    fontSize: 13,
+                    color: isVoiceActive ? "#E2E8F0" : T.textMain,
+                    fontSize: 13.5,
                     fontFamily: "inherit",
+                    fontWeight: isVoiceActive ? 500 : 400,
                   }}
                 />
 
@@ -641,9 +853,9 @@ export default function VoiceRagPage() {
                   style={{
                     background: inputVal.trim() && !isLoading ? T.brand : "rgba(255,255,255,0.05)",
                     border: "none",
-                    borderRadius: 6,
-                    width: 30,
-                    height: 30,
+                    borderRadius: 8,
+                    width: 32,
+                    height: 32,
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
@@ -652,53 +864,78 @@ export default function VoiceRagPage() {
                     flexShrink: 0,
                   }}
                 >
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={inputVal.trim() && !isLoading ? "#FFF" : T.textMuted} strokeWidth="2.5">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={inputVal.trim() && !isLoading ? "#FFF" : T.textMuted} strokeWidth="2.5">
                     <line x1="5" y1="12" x2="19" y2="12" />
                     <polyline points="12 5 19 12 12 19" />
                   </svg>
                 </button>
               </div>
 
-              {/* Voice Listening Active Banner */}
+              {/* Dynamic Live Audio Equalizer & Auto-Stop Status */}
               {isVoiceActive && (
-                <div style={{
-                  display: "flex", alignItems: "center", justifyContent: "space-between",
-                  marginTop: 6, padding: "6px 12px",
-                  background: "rgba(108,99,255,0.08)",
-                  border: `1px solid ${T.brandBdr}`,
-                  borderRadius: 6,
-                  fontSize: 11,
-                  color: T.textSec,
-                }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-                    <span style={{
-                      width: 6, height: 6, borderRadius: "50%",
-                      background: T.brandLight,
-                      boxShadow: `0 0 8px ${T.brandLight}`,
-                    }} className="animate-pulse" />
-                    <span style={{ fontWeight: 600, color: T.textMain }}>Listening…</span>
-                    <span style={{ color: T.textMuted, fontStyle: voice.liveTranscript ? "italic" : "normal" }}>
-                      {voice.liveTranscript ? `"${voice.liveTranscript}"` : "Speak now in any language"}
+                <motion.div
+                  initial={{ opacity: 0, y: -4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -4 }}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    marginTop: 8,
+                    padding: "7px 12px",
+                    background: "rgba(10, 16, 28, 0.95)",
+                    backdropFilter: "blur(16px)",
+                    border: "1px solid rgba(108, 99, 255, 0.3)",
+                    borderRadius: 8,
+                    boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+                    {/* Frequency Bars */}
+                    <div style={{ display: "flex", alignItems: "center", gap: 3, height: 14 }}>
+                      {[0.5, 1.2, 0.7, 1.4, 0.9, 1.3, 0.6].map((f, i) => (
+                        <div
+                          key={i}
+                          style={{
+                            width: 3,
+                            height: Math.max(3, Math.min(14, (voice.audioLevel || 8) * f * 0.22)),
+                            background: "linear-gradient(180deg, #6C63FF 0%, #00D4FF 100%)",
+                            borderRadius: 2,
+                            transition: "height 0.08s ease",
+                          }}
+                        />
+                      ))}
+                    </div>
+                    <span style={{ fontSize: 11.5, color: T.textMain, fontWeight: 600 }}>
+                      Listening...
+                    </span>
+                    <span style={{ fontSize: 10.5, color: T.textMuted, fontStyle: "italic" }}>
+                      Auto-detects speech & stops automatically
                     </span>
                   </div>
+
                   <button
                     type="button"
                     onClick={voice.stopRecording}
                     style={{
-                      background: "rgba(239,68,68,0.15)",
-                      border: "1px solid rgba(239,68,68,0.35)",
-                      borderRadius: 4,
-                      padding: "2px 6px",
-                      fontSize: 9,
+                      background: "rgba(239,68,68,0.18)",
+                      border: "1px solid rgba(239,68,68,0.4)",
+                      borderRadius: 6,
+                      padding: "3px 9px",
+                      fontSize: 10.5,
                       fontFamily: "monospace",
-                      color: T.danger,
+                      color: "#F87171",
                       cursor: "pointer",
                       fontWeight: 700,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 4,
                     }}
                   >
-                    ⏹ STOP & SEARCH
+                    <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#EF4444" }} />
+                    Done Speaking ↵
                   </button>
-                </div>
+                </motion.div>
               )}
             </form>
 
@@ -716,7 +953,7 @@ export default function VoiceRagPage() {
                 <button
                   key={item.lang + item.label}
                   type="button"
-                  onClick={() => submit(item.query)}
+                  onClick={() => submit(item.query, item.langCode)}
                   style={{
                     background: "rgba(255,255,255,0.03)",
                     border: `1px solid ${T.glassBdr}`,
@@ -783,7 +1020,7 @@ export default function VoiceRagPage() {
             {/* ─── Inline Result Card ─── */}
             <AnimatePresence mode="wait">
               {isLoading && (
-                <InlineResultCardSkeleton key="skeleton" query={displayQuery} />
+                <InlineResultCardSkeleton key="skeleton" query={displayQuery} targetLang={selectedLang} />
               )}
               {!isLoading && result && (
                 <InlineResultCard

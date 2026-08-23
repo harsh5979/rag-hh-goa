@@ -8,8 +8,8 @@ import type { RecorderState } from "./useVoiceRecorder";
 export function useVoiceQuery(initialLanguage: IndicLanguageCode = "en-IN") {
   const voiceRag = useVoiceRag({
     language: initialLanguage,
-    silenceThresholdMs: 1200,
-    energyThreshold: 10,
+    silenceThresholdMs: 1000,
+    energyThreshold: 6,
     autoSpeak: true,
   });
 

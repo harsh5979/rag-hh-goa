@@ -48,6 +48,7 @@ export function useVoiceRag(config: VoiceConfig = {}) {
   const streamerRef = useRef<AudioStreamer | null>(null);
   const wsClientRef = useRef<VoiceWebSocketClient | null>(null);
   const playerRef = useRef<VoicePlayer | null>(null);
+  const speechRecognitionRef = useRef<any>(null);
   const isStoppingRef = useRef<boolean>(false);
   const transcriptRef = useRef<string>("");
   const currentLanguageRef = useRef<IndicLanguageCode>(language);
@@ -92,16 +93,19 @@ export function useVoiceRag(config: VoiceConfig = {}) {
     playerRef.current = player;
 
     return () => {
-      player.destroy();
+      player.stop();
+      playerRef.current = null;
     };
   }, [updateState]);
 
+  // Audio Context unlocker for mobile browsers
   const unlockAudio = useCallback(async () => {
     if (playerRef.current) {
       await playerRef.current.unlockAudio();
     }
   }, []);
 
+  // Stop currently playing speech
   const stopSpeaking = useCallback(() => {
     if (playerRef.current) {
       playerRef.current.stop();
@@ -113,40 +117,57 @@ export function useVoiceRag(config: VoiceConfig = {}) {
     setSpeechProgress(0);
   }, [updateState]);
 
+// Auto-detect Indic script from text content
+function detectScriptLanguage(text: string, fallbackLang: IndicLanguageCode = "en-IN"): IndicLanguageCode {
+  if (/[\u0900-\u097F]/.test(text)) return "hi-IN"; // Hindi / Marathi
+  if (/[\u0A80-\u0AFF]/.test(text)) return "gu-IN"; // Gujarati
+  if (/[\u0B80-\u0BFF]/.test(text)) return "ta-IN"; // Tamil
+  if (/[\u0C00-\u0C7F]/.test(text)) return "te-IN"; // Telugu
+  if (/[\u0980-\u09FF]/.test(text)) return "bn-IN"; // Bengali
+  if (/[\u0C80-\u0CFF]/.test(text)) return "kn-IN"; // Kannada
+  if (/[\u0D00-\u0D7F]/.test(text)) return "ml-IN"; // Malayalam
+  if (/[\u0A00-\u0A7F]/.test(text)) return "pa-IN"; // Punjabi
+  if (/[\u0B00-\u0B7F]/.test(text)) return "or-IN"; // Odia
+  return fallbackLang || "en-IN";
+}
+
+  // Sarvam AI Neural Studio Voice synthesis with browser fallback
   const speakAnswer = useCallback(
-    async (text: string, targetLanguage?: IndicLanguageCode) => {
-      if (!text || typeof window === "undefined") return;
+    async (textToSpeak: string, langCode: IndicLanguageCode = "en-IN") => {
+      if (!textToSpeak || !textToSpeak.trim()) return;
 
       stopSpeaking();
-      updateState("speaking");
-      setSpeechProgress(0);
-
-      const langToUse = targetLanguage || currentLanguageRef.current;
+      const detectedLang = detectScriptLanguage(textToSpeak, langCode);
 
       try {
-        // 1. Primary: Use Sarvam AI bulbul:v2 studio neural voice
-        const ttsData = await audioApi.sendTTS(text, langToUse);
-        if (ttsData?.audio_base64 && playerRef.current) {
-          await playerRef.current.playBase64(ttsData.audio_base64);
+        updateState("speaking");
+        // 1. Play studio neural voice via Sarvam AI TTS
+        const ttsRes = await audioApi.sendTTS(textToSpeak, detectedLang);
+        if (ttsRes?.audio_base64 && playerRef.current) {
+          await playerRef.current.playBase64(ttsRes.audio_base64);
           return;
         }
       } catch (err) {
-        console.warn("[useVoiceRag] Sarvam TTS API error, falling back to Web Speech:", err);
+        console.warn("[useVoiceRag] Sarvam TTS fallback to browser speech:", err);
       }
 
-      // 2. Fallback only if Sarvam is unreachable
-      if ("speechSynthesis" in window) {
-        const utterance = new SpeechSynthesisUtterance(text);
+      // 2. Fallback to browser SpeechSynthesis
+      if (typeof window !== "undefined" && "speechSynthesis" in window) {
+        updateState("speaking");
+        const utterance = new SpeechSynthesisUtterance(textToSpeak);
+        utterance.lang = detectedLang;
         utterance.rate = 1.0;
-        utterance.pitch = 1.0;
 
         const voices = window.speechSynthesis.getVoices();
-        const v = voices.find((v) => v.lang.startsWith(langToUse.split("-")[0]));
-        if (v) utterance.voice = v;
+        const langPrefix = detectedLang.split("-")[0];
+        const match = voices.find((v) => v.lang.startsWith(langPrefix));
+        if (match) {
+          utterance.voice = match;
+        }
 
-        utterance.onboundary = (event) => {
-          if (event.charIndex !== undefined && text.length > 0) {
-            setSpeechProgress(event.charIndex / text.length);
+        utterance.onboundary = (e) => {
+          if (textToSpeak.length > 0 && e.charIndex !== undefined) {
+            setSpeechProgress(Math.min(1, e.charIndex / textToSpeak.length));
           }
         };
 
@@ -171,6 +192,14 @@ export function useVoiceRag(config: VoiceConfig = {}) {
     if (isStoppingRef.current) return null;
     isStoppingRef.current = true;
 
+    // Stop speech recognition
+    if (speechRecognitionRef.current) {
+      try {
+        speechRecognitionRef.current.stop();
+      } catch {}
+      speechRecognitionRef.current = null;
+    }
+
     setSilenceCountdown(null);
     setSpeechDetected(false);
     setAudioLevel(0);
@@ -193,25 +222,31 @@ export function useVoiceRag(config: VoiceConfig = {}) {
       }
 
       // If we have an audio blob, process via API pipeline
+      const apiLang = currentLanguageRef.current === "auto" ? "unknown" : currentLanguageRef.current;
       if (audioBlob && audioBlob.size > 500) {
-        finalResponse = await audioApi.sendAudioQuery(audioBlob, currentTranscript);
+        finalResponse = await audioApi.sendAudioQuery(audioBlob, currentTranscript, apiLang);
       } else if (currentTranscript && currentTranscript.trim()) {
         finalResponse = await queryApi.sendTextQuery(currentTranscript.trim());
       }
 
       if (finalResponse) {
-        if (currentTranscript && !finalResponse.transcript) {
-          finalResponse.transcript = currentTranscript;
+        // High-accuracy transcript from Sarvam STT in native Indic script
+        const bestTranscript = finalResponse.transcript || finalResponse.query || currentTranscript;
+        if (bestTranscript) {
+          finalResponse.transcript = bestTranscript;
+          setLiveTranscript(bestTranscript);
+          transcriptRef.current = bestTranscript;
+          onTranscript?.(bestTranscript, true);
         }
 
         setResultState(finalResponse);
         setResponseAnswer(finalResponse.answer || "");
         setLatencyMs(finalResponse.timings?.total_ms || streamResult.durationMs);
-        addResult(finalResponse, currentTranscript || "[Voice Query]");
+        addResult(finalResponse, bestTranscript || "[Voice Query]");
         onResponse?.(finalResponse);
 
         if (autoSpeak && finalResponse.answer) {
-          await speakAnswer(finalResponse.answer, currentLanguageRef.current);
+          await speakAnswer(finalResponse.answer, (finalResponse.language as IndicLanguageCode) || currentLanguageRef.current);
         } else {
           updateState("idle");
         }
@@ -256,7 +291,7 @@ export function useVoiceRag(config: VoiceConfig = {}) {
     try {
       // 1. Initialize WebSocket Client for streaming frames
       const wsClient = new VoiceWebSocketClient({
-        language: currentLanguageRef.current,
+        language: currentLanguageRef.current === "auto" ? "en-IN" : currentLanguageRef.current,
         onTranscript: (t, isFinal) => {
           setLiveTranscript(t);
           transcriptRef.current = t;
@@ -290,7 +325,61 @@ export function useVoiceRag(config: VoiceConfig = {}) {
       // Initiate background connection (non-blocking)
       wsClient.connect().catch(() => {});
 
-      // 2. Initialize Audio Streamer with 250ms chunks and 100% track cleanup
+        // 2. Start Live Browser SpeechRecognition for instant live input feedback
+        if (typeof window !== "undefined") {
+          const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+          if (SpeechRec) {
+            try {
+              const recognition = new SpeechRec();
+              recognition.continuous = false; // Auto-detects end of utterance and triggers onend
+              recognition.interimResults = true;
+              recognition.maxAlternatives = 1;
+              
+              // Set appropriate recognition language
+              if (currentLanguageRef.current && currentLanguageRef.current !== "auto") {
+                recognition.lang = currentLanguageRef.current;
+              } else {
+                // In Auto mode, use standard en-IN phonetics so Sarvam STT can auto-detect the true language from audio
+                recognition.lang = "en-IN";
+              }
+
+              recognition.onresult = (event: any) => {
+                let currentTranscript = "";
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                  currentTranscript += event.results[i][0].transcript;
+                }
+                const full = currentTranscript.trim();
+                if (full) {
+                  setLiveTranscript(full);
+                  transcriptRef.current = full;
+                  onTranscript?.(full, false);
+                }
+              };
+
+              recognition.onerror = (e: any) => {
+                if (e.error === "no-speech" || e.error === "aborted") {
+                  // Silently ignore standard idle timeout
+                } else {
+                  console.debug("[SpeechRecognition] note:", e.error);
+                }
+              };
+
+              recognition.onend = () => {
+                // When utterance ends, automatically trigger stop and search if we got words
+                if (transcriptRef.current && transcriptRef.current.trim() && !isStoppingRef.current) {
+                  stopListening();
+                }
+              };
+
+              recognition.start();
+              speechRecognitionRef.current = recognition;
+            } catch (recErr) {
+              console.debug("[SpeechRecognition] init skip:", recErr);
+            }
+          }
+        }
+
+      // 3. Initialize Audio Streamer with 250ms chunks and 100% track cleanup
       const streamer = new AudioStreamer({
         chunkDurationMs: 250,
         energyThreshold,

@@ -24,7 +24,7 @@ class Settings(BaseSettings):
 
     # Comma-separated fallback model chain
     groq_fallback_models: str = (
-        "groq/compound-mini,openai/gpt-oss-120b"
+        "openai/gpt-oss-120b,openai/gpt-oss-20b,qwen/qwen3.6-27b,groq/compound-mini"
     )
     # Comma-separated per-model timeout budgets (ms), same length as models
     groq_timeouts_ms: str = "6000,8000"

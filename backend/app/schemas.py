@@ -22,6 +22,9 @@ class QueryResponse(BaseModel):
     confidence: float
     sources: List[SourceChunk]
     guardrails: List[GuardrailResult]
+    transcript: Optional[str] = None
+    query: Optional[str] = None
+    language: Optional[str] = None
     
     # Latency tracking (waterfall model)
     ms_stt: float = 0.0

@@ -80,14 +80,17 @@ async def voice_websocket_endpoint(
                     # ── Stage 1: STT Transcription ──
                     stt_ms = 0.0
                     transcript = ""
+                    stt_lang = requested_lang if requested_lang and requested_lang not in ("unknown", "auto") else "unknown"
+                    detected_lang = requested_lang or "unknown"
 
                     if len(audio_buffer) > 500:
                         try:
                             # Wrap buffer in mock UploadFile
                             mock_file = StreamingAudioUploadFile(bytes(audio_buffer))
-                            stt_result = await transcribe_audio(mock_file)
+                            stt_result = await transcribe_audio(mock_file, language_code=stt_lang)
                             transcript = stt_result.transcript.strip()
                             stt_ms = stt_result.ms_elapsed
+                            detected_lang = stt_result.language
                         except Exception as e:
                             logger.warning(f"[VoiceWS] Sarvam STT failed: {e}")
 
@@ -96,29 +99,60 @@ async def voice_websocket_endpoint(
                         logger.info(f"[VoiceWS] Used fallback transcript: '{transcript}'")
 
                     if not transcript:
-                        transcript = "What is MSMARCO and information retrieval?"
+                        logger.info("[VoiceWS] Empty audio received — sending retry message")
+                        await websocket.send_text(json.dumps({
+                            "type": "rag_response",
+                            "answer": "I didn't catch that. Please speak clearly into the microphone.",
+                            "sources": [],
+                            "timings": {"ms_stt": round(stt_ms, 2), "ms_retrieval": 0, "ms_generation": 0, "total_ms": round(stt_ms, 2)},
+                            "confidence": 0.0,
+                            "generation_mode": "fallback",
+                            "refused": False,
+                            "transcript": "",
+                            "query": "",
+                            "language": detected_lang,
+                        }))
+                        await websocket.send_text(json.dumps({
+                            "type": "done",
+                            "total_ms": round(stt_ms, 2)
+                        }))
+                        continue
 
                     # Emit transcript immediately
                     await websocket.send_text(json.dumps({
                         "type": "transcript",
                         "transcript": transcript,
                         "is_final": True,
-                        "language": requested_lang,
+                        "language": detected_lang,
                         "ms_elapsed": round(stt_ms, 2)
                     }))
 
                     # ── Stage 2: RAG Pipeline ──
-                    rag_response = await process_query(transcript, ms_stt=stt_ms, is_voice=True)
+                    rag_response = await process_query(transcript, ms_stt=stt_ms, is_voice=True, detected_lang=detected_lang)
+                    rag_response.transcript = transcript
+                    rag_response.query = transcript
+                    rag_response.language = detected_lang
                     
+                    timings_dict = {
+                        "ms_stt": rag_response.ms_stt,
+                        "ms_retrieval": rag_response.ms_retrieval,
+                        "ms_generation": rag_response.ms_generation,
+                        "total_ms": rag_response.ms_total,
+                        "ms_total": rag_response.ms_total,
+                    }
+
                     # Emit RAG answer & sources
                     await websocket.send_text(json.dumps({
                         "type": "rag_response",
                         "answer": rag_response.answer,
                         "sources": [s.model_dump() for s in rag_response.sources],
-                        "timings": rag_response.timings.model_dump() if rag_response.timings else {},
+                        "timings": timings_dict,
                         "confidence": rag_response.confidence,
                         "generation_mode": rag_response.generation_mode,
                         "refused": rag_response.generation_mode == "refusal",
+                        "transcript": transcript,
+                        "query": transcript,
+                        "language": detected_lang,
                     }))
 
                     # ── Stage 3: Neural TTS Synthesis ──

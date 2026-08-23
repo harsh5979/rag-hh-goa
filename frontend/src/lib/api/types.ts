@@ -49,6 +49,8 @@ export interface PipelineResponse {
   confidence?: number;
   model_used?: string;
   transcript?: string;
+  query?: string;
+  language?: string;
   ms_stt?: number;
   ms_retrieval?: number;
   ms_generation?: number;

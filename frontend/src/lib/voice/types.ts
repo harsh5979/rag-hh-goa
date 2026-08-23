@@ -4,12 +4,13 @@ import type { PipelineResponse, Source, StageTiming } from "@/lib/api/types";
  * Supported Indic and Indian English language codes across the 11 official pipeline targets.
  */
 export type IndicLanguageCode =
-  | "hi-IN" // Hindi
+  | "auto"  // Auto-Detect language (Sarvam AI)
   | "gu-IN" // Gujarati
+  | "hi-IN" // Hindi
+  | "mr-IN" // Marathi
   | "ta-IN" // Tamil
   | "te-IN" // Telugu
   | "bn-IN" // Bengali
-  | "mr-IN" // Marathi
   | "kn-IN" // Kannada
   | "ml-IN" // Malayalam
   | "pa-IN" // Punjabi

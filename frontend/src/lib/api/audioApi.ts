@@ -2,11 +2,14 @@ import { apiClient } from "./client";
 import type { PipelineResponse } from "./types";
 
 export const audioApi = {
-  async sendAudioQuery(audioBlob: Blob, fallbackTranscript?: string): Promise<PipelineResponse> {
+  async sendAudioQuery(audioBlob: Blob, fallbackTranscript?: string, language?: string): Promise<PipelineResponse> {
     const formData = new FormData();
     formData.append("audio_file", audioBlob, "recording.webm");
     if (fallbackTranscript && fallbackTranscript.trim()) {
       formData.append("fallback_transcript", fallbackTranscript.trim());
+    }
+    if (language && language.trim()) {
+      formData.append("language", language.trim());
     }
     
     const response = await apiClient.postFormData<any>("/chat/audio", formData);
