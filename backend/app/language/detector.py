@@ -2,13 +2,27 @@ import re
 from typing import Dict, Set, Tuple, Optional, List
 from loguru import logger
 
-# ── Unicode Script Code Point Ranges (Exact O(N) Scan) ─────────────────────
+# ── Supported 11 Indic Pipeline Targets ────────────────────────────────────
+ALL_SUPPORTED_LANGUAGES: Set[str] = {
+    "gu-IN", "hi-IN", "mr-IN", "en-IN",
+    "ta-IN", "te-IN", "bn-IN", "kn-IN", "ml-IN", "pa-IN", "or-IN"
+}
+
+# ── 4 Fast Core Auto-Detect Targets (Gujarati, Hindi, English, Marathi) ─────
+CORE_AUTO_LANGUAGES: Set[str] = {
+    "gu-IN",  # Gujarati
+    "hi-IN",  # Hindi
+    "mr-IN",  # Marathi
+    "en-IN",  # English
+}
+
+# ── Unicode Script Code Point Ranges (Exact O(N) Scan for all 11 Scripts) ───
 UNICODE_SCRIPT_RANGES: Dict[str, Tuple[int, int]] = {
     "gu-IN": (0x0A80, 0x0AFF),  # Gujarati
     "hi-IN": (0x0900, 0x097F),  # Devanagari (Hindi / Marathi)
     "ta-IN": (0x0B80, 0x0BFF),  # Tamil
     "te-IN": (0x0C00, 0x0C7F),  # Telugu
-    "bn-IN": (0x0980, 0x09FF),  # Bengali / Assamese
+    "bn-IN": (0x0980, 0x09FF),  # Bengali
     "kn-IN": (0x0C80, 0x0CFF),  # Kannada
     "ml-IN": (0x0D00, 0x0D7F),  # Malayalam
     "pa-IN": (0x0A00, 0x0A7F),  # Gurmukhi (Punjabi)
@@ -19,6 +33,7 @@ LANGUAGE_NAMES: Dict[str, str] = {
     "gu-IN": "Gujarati",
     "hi-IN": "Hindi",
     "mr-IN": "Marathi",
+    "en-IN": "English",
     "ta-IN": "Tamil",
     "te-IN": "Telugu",
     "bn-IN": "Bengali",
@@ -26,19 +41,20 @@ LANGUAGE_NAMES: Dict[str, str] = {
     "ml-IN": "Malayalam",
     "pa-IN": "Punjabi",
     "or-IN": "Odia",
-    "en-IN": "English",
 }
 
 class LanguageDetector:
     """
-    Tiered Hierarchical Language Detection Engine (Option 1).
+    Tiered Hierarchical Language Detection Engine.
+    - All 11 Indic scripts supported for explicit script recognition.
+    - Fast 4-language core engine (Gujarati, Hindi, Marathi, English) for Auto-Detect.
     - Tier 1: O(N) Deterministic Unicode script boundary checking (< 0.001 ms).
     - Tier 2: Morphological Root & Sub-word Suffix / Prefix scoring (< 0.02 ms).
     - Tier 3: In-Memory LRU Cache for zero redundant computation.
     """
 
     def __init__(self):
-        # ── 1. Core Root Lexicons for Romanized Indic Recognition ─────────
+        # ── 1. Core Root Lexicons for 4 Fast Auto-Detection Targets ────────
         self._root_lexicon: Dict[str, Set[str]] = {
             "gu-IN": {
                 "kem", "chho", "cho", "chhe", "che", "mane", "tamne", "tamaru", "tamari", "tamaro",
@@ -46,42 +62,38 @@ class LanguageDetector:
                 "su", "shu", "shun", "karo", "karvanu", "karvu", "nathi", "aave", "aavse", "ketla", "ketli",
                 "ketlo", "graho", "graha", "surya", "suryamandal", "kyare", "kyan", "kai", "kone", "khabar",
                 "maja", "majama", "hova", "chhiye", "tame", "ame", "te", "tenu", "teni", "karan", "mate",
-                "samjavu", "bolvu", "puchhvun", "prashna", "shodh", "aabhar", "namaskar", "pela", "haju"
+                "samjavu", "bolvu", "puchhvun", "prashna", "shodh", "aabhar", "namaskar", "pela", "haju",
+                "halo", "kaho", "bhai", "ben", "badha", "badhu"
             },
             "hi-IN": {
-                "aap", "kaise", "kaisi", "kaisa", "ho", "hai", "hain", "kya", "kyun", "kyu", "kripya",
+                "aap", "kaise", "kaisi", "kaisa", "ho", "hai", "hain", "kya", "kyun", "kyu", "kripya", "kripa",
                 "mujhe", "mujhko", "hum", "tum", "mera", "meri", "mere", "karo", "karta", "karti", "karte",
                 "hoti", "hota", "hote", "kitne", "kitna", "kitni", "grah", "kaun", "kahan", "kab", "namaste",
                 "shukriya", "batao", "bataiye", "prakash", "sanshleshan", "me", "mein", "se", "ko", "ka",
-                "ki", "ke", "liye", "karen", "kijiye", "bolo", "boliye", "bhai", "samjhao", "chahiye"
+                "ki", "ke", "liye", "karen", "kijiye", "bolo", "boliye", "bhai", "samjhao", "chahiye",
+                "chahie", "karun", "karu", "lagta", "lagti", "lagte", "lag", "naam", "tujhe", "tujhko",
+                "aisa", "aise", "aisi", "abhi", "kabhi", "jab", "tab", "nahane", "nahan", "jana", "jaana",
+                "aana", "aata", "aati", "aate", "raha", "rahe", "rahi", "acha", "achha", "achhi", "achhe",
+                "theek", "thik", "nahin", "nhi", "nahii", "bohot", "bahut", "kuch", "kuchh", "padhna",
+                "likhna", "dekhna", "sunna", "samajhna", "samjhana", "hoga", "hogi", "hoge", "tha", "thi", "the"
             },
             "mr-IN": {
-                "aahe", "aahet", "kiti", "zhale", "nahi", "mhanje", "karnare", "suryamalet", "tumhi",
-                "aamhi", "majhe", "tujhe", "kasa", "kashi", "kase", "kay", "kuthe", "kadhi", "dhanyavad"
+                "tula", "mala", "tyala", "tila", "amhi", "aamhi", "tumhi", "apan", "aapan",
+                "majha", "majhi", "majhe", "tujha", "tujhi", "tujhe", "tyacha", "tyachi", "tyache",
+                "ticha", "tichi", "tiche", "amcha", "aamcha", "tumcha", "tumchi", "tumche",
+                "kay", "kai", "kasa", "kashi", "kase", "kuthe", "kathe", "kadhi", "kiti", "kashala",
+                "kashamule", "kashat", "konte", "konti", "konta", "kashan", "kon", "koni",
+                "sangu", "sanga", "sang", "sangto", "sangte", "sangtat", "naka", "nako",
+                "aahe", "ahe", "aahet", "ahet", "nahi", "nahit", "zhale", "jhale", "jhala", "zala", "zali",
+                "hot", "hota", "hoti", "hote", "karu", "kara", "kar", "karaycha", "karayche", "karaychi",
+                "karte", "karto", "kartat", "bol", "bolu", "bola", "bolte", "bolto", "boltat",
+                "dakhav", "dakhva", "shikva", "samjav", "thik", "chalel", "chalalay", "karnare",
+                "mahit", "mahiti", "kahi", "kahich", "suryamalet", "suryamal", "surya", "grah", "graha",
+                "prakash", "sanshleshan", "dhanyavad", "namaskar"
             },
-            "ta-IN": {
-                "vanakkam", "eppadi", "irukinga", "irukku", "enna", "ethu", "enge", "eppothu",
-                "nanri", "ungal", "enathu", "aam", "illai", "sollunga"
-            },
-            "te-IN": {
-                "namaskaram", "ela", "unnaru", "undi", "emi", "enti", "ekkada", "eppudu",
-                "dhanyavadalu", "mee", "naa", "avunu", "kadu", "cheppandi"
-            },
-            "bn-IN": {
-                "nomoshkar", "kemon", "achhen", "achhe", "ki", "kothay", "kokhon", "dhonnobad",
-                "apnar", "amar", "haan", "na", "bolun"
-            },
-            "kn-IN": {
-                "namaskara", "hegiddeera", "ide", "enu", "yelli", "yaavaga", "dhanyavadagalu", "nimma", "nanna"
-            },
-            "ml-IN": {
-                "namaskaram", "engane", "undu", "enthu", "evide", "eppol", "nanni", "ninnude", "ente"
-            },
-            "pa-IN": {
-                "sat", "sri", "akaal", "kivein", "ho", "hai", "ki", "kithe", "kadon", "dhannvaad", "tuhada", "mera"
-            },
-            "or-IN": {
-                "namaskar", "kemiti", "achhanti", "achi", "kana", "kouthi", "ketebele", "dhanyabad", "apanka", "mora"
+            "en-IN": {
+                "hello", "hi", "hey", "what", "is", "how", "are", "you", "who", "when", "where",
+                "why", "can", "tell", "explain", "project", "manhattan", "photosynthesis", "solar", "system"
             }
         }
 
@@ -96,16 +108,9 @@ class LanguageDetector:
                 "gaya", "gayi", "gaye", "wala", "wali", "wale", "kijiye", "jiye", "iye", "kar"
             ),
             "mr-IN": (
-                "tay", "lay", "tat", "to", "te", "la", "li", "le", "hun", "chya", "che", "chi", "cha"
-            ),
-            "ta-IN": (
-                "aana", "odu", "udan", "il", "ukku", "aga", "anga", "ingal", "gal"
-            ),
-            "te-IN": (
-                "lo", "to", "ki", "ku", "gari", "unnaru", "aru", "indi", "undhi"
-            ),
-            "bn-IN": (
-                "er", "te", "ke", "ra", "gulo", "chhe", "chhi", "chen"
+                "tay", "lay", "tat", "to", "te", "la", "li", "le", "hun", "chya", "che", "chi", "cha",
+                "sathi", "mule", "var", "varun", "kade", "naka", "nako", "ycha", "yche", "ychi",
+                "aycha", "ayche", "aychi", "stat", "shil", "nar"
             )
         }
 

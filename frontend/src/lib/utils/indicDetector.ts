@@ -1,6 +1,6 @@
 import { IndicLanguageCode } from "../voice/types";
 
-// ── Unicode Script Range Detection ─────────────────────────────────────────
+// ── Unicode Script Range Detection (All 11 Indic Scripts) ─────────────────
 export function isIndicScript(text: string): boolean {
   return /[\u0900-\u0D7F]/.test(text);
 }
@@ -24,14 +24,17 @@ export function detectScriptFromUnicode(text: string): IndicLanguageCode | null 
   return null;
 }
 
-// ── Romanized Lexical Markers for Instant Client-Side Detection ───────────
+// ── Romanized Lexical Markers for 4 Fast Auto-Detection Targets ───────────
 const HINDI_ROMAN_WORDS = new Set([
   "mujhe", "mujhko", "mera", "meri", "mere", "hum", "tum", "aap", "kya", "kyun",
   "kyu", "karna", "kare", "karo", "karta", "karti", "karte", "karun", "karu", "chahiye",
-  "chahie", "hai", "hain", "ho", "kaise", "kaisi", "kaisa", "lagta", "lagti", "lagte",
+  "chahie", "hai", "hain", "ho", "kaise", "kaisi", "kaisa", "lagta", "lagti", "lagte", "lag",
   "naam", "tujhe", "tujhko", "tera", "teri", "tere", "batao", "bataiye", "samjhao",
   "prakash", "sanshleshan", "surya", "mandal", "kitne", "kitna", "kitni", "grah", "graha",
-  "kahan", "kab", "kaun", "kripya", "namaste", "shukriya", "bhai", "hoga", "hogi", "hoge"
+  "kahan", "kab", "kaun", "kripya", "kripa", "namaste", "shukriya", "bhai", "hoga", "hogi", "hoge",
+  "aisa", "aise", "aisi", "abhi", "kabhi", "jab", "tab", "nahane", "nahan", "jana", "jaana",
+  "aana", "aata", "aati", "aate", "raha", "rahe", "rahi", "acha", "achha", "achhi", "achhe",
+  "theek", "thik", "nahin", "nhi", "nahii", "bohot", "bahut", "kuch", "kuchh", "ki", "toh", "to"
 ]);
 
 const GUJARATI_ROMAN_WORDS = new Set([
@@ -39,64 +42,60 @@ const GUJARATI_ROMAN_WORDS = new Set([
   "maro", "su", "shu", "shun", "lage", "chhe", "che", "chhiye", "jamvu", "jamvanu",
   "bhaviyu", "bhavya", "bahu", "aaji", "aaje", "nathi", "aave", "aavse", "ketla", "ketli",
   "ketlo", "graho", "suryamandal", "kyare", "kyan", "kai", "kone", "khabar", "maja",
-  "majama", "tame", "ame", "mate", "karan", "bolvu", "samjavu", "sharu", "kariye"
+  "majama", "tame", "ame", "mate", "karan", "bolvu", "samjavu", "sharu", "kariye",
+  "halo", "kaho", "bhai", "ben"
 ]);
 
 const MARATHI_ROMAN_WORDS = new Set([
-  "aahe", "aahet", "kiti", "zhale", "nahi", "mhanje", "tumhi", "aamhi", "majhe", "tujhe",
-  "kasa", "kashi", "kase", "kay", "kuthe", "kadhi"
+  "tula", "mala", "tyala", "tila", "amhi", "aamhi", "tumhi", "apan", "aapan",
+  "majha", "majhi", "majhe", "tujha", "tujhi", "tujhe", "tyacha", "tyachi", "tyache",
+  "kay", "kai", "kasa", "kashi", "kase", "kuthe", "kathe", "kadhi", "kiti", "kashala",
+  "kashamule", "kashat", "sangu", "sanga", "sang", "sangto", "sangte", "sangtat", "naka", "nako",
+  "aahe", "ahe", "aahet", "ahet", "nahi", "nahit", "zhale", "jhale", "jhala", "zala", "zali",
+  "hot", "hota", "hoti", "hote", "karu", "kara", "kar", "karaycha", "karayche", "karaychi",
+  "karte", "karto", "kartat", "bol", "bolu", "bola", "bolte", "bolto", "boltat",
+  "dakhav", "dakhva", "shikva", "samjav", "thik", "chalel", "chalalay", "karnare",
+  "mahit", "mahiti", "kahi", "kahich", "dhanyavad", "namaskar"
 ]);
 
-const TAMIL_ROMAN_WORDS = new Set([
-  "vanakkam", "eppadi", "irukinga", "irukku", "enna", "ethu", "enge", "eppothu", "nanri", "ungal"
-]);
-
-const TELUGU_ROMAN_WORDS = new Set([
-  "namaskaram", "ela", "unnaru", "undi", "emi", "enti", "ekkada", "eppudu", "dhanyavadalu", "mee"
-]);
-
-const BENGALI_ROMAN_WORDS = new Set([
-  "nomoshkar", "kemon", "achhen", "achhe", "ki", "kothay", "kokhon", "dhonnobad", "apnar", "amar"
+const ENGLISH_ROMAN_WORDS = new Set([
+  "hello", "hi", "hey", "what", "is", "how", "are", "you", "who", "when", "where",
+  "why", "can", "tell", "explain", "project", "manhattan", "photosynthesis", "solar", "system"
 ]);
 
 export function detectLanguageClient(text: string, fallback: IndicLanguageCode = "en-IN"): IndicLanguageCode {
   if (!text || !text.trim()) return fallback;
 
-  // 1. Unicode Script Check (100% exact)
+  // 1. Unicode Script Check (100% exact for all 11 scripts)
   const scriptLang = detectScriptFromUnicode(text);
   if (scriptLang) return scriptLang;
 
-  // 2. Romanized Token Scoring
+  // 2. Romanized Token Scoring (4 Fast Core Auto-Detect Targets)
   const tokens = text.toLowerCase().match(/[a-zA-Z]+/g) || [];
   if (tokens.length === 0) return fallback;
 
   let hiScore = 0;
   let guScore = 0;
   let mrScore = 0;
-  let taScore = 0;
-  let teScore = 0;
-  let bnScore = 0;
+  let enScore = 0;
 
   for (const token of tokens) {
     if (HINDI_ROMAN_WORDS.has(token)) hiScore += 3;
     if (GUJARATI_ROMAN_WORDS.has(token)) guScore += 3;
     if (MARATHI_ROMAN_WORDS.has(token)) mrScore += 3;
-    if (TAMIL_ROMAN_WORDS.has(token)) taScore += 3;
-    if (TELUGU_ROMAN_WORDS.has(token)) teScore += 3;
-    if (BENGALI_ROMAN_WORDS.has(token)) bnScore += 3;
+    if (ENGLISH_ROMAN_WORDS.has(token)) enScore += 3;
 
     // Suffix heuristic for unseen words
     if (token.endsWith("vanu") || token.endsWith("chhe") || token.endsWith("chho")) guScore += 1.5;
     if (token.endsWith("karta") || token.endsWith("karo") || token.endsWith("raha") || token.endsWith("chahiye")) hiScore += 1.5;
+    if (token.endsWith("tay") || token.endsWith("tat") || token.endsWith("chya") || token.endsWith("sathi")) mrScore += 1.5;
   }
 
   const scores = [
-    { lang: "hi-IN" as IndicLanguageCode, score: hiScore },
     { lang: "gu-IN" as IndicLanguageCode, score: guScore },
+    { lang: "hi-IN" as IndicLanguageCode, score: hiScore },
     { lang: "mr-IN" as IndicLanguageCode, score: mrScore },
-    { lang: "ta-IN" as IndicLanguageCode, score: taScore },
-    { lang: "te-IN" as IndicLanguageCode, score: teScore },
-    { lang: "bn-IN" as IndicLanguageCode, score: bnScore },
+    { lang: "en-IN" as IndicLanguageCode, score: enScore },
   ];
 
   scores.sort((a, b) => b.score - a.score);
@@ -109,6 +108,48 @@ export function detectLanguageClient(text: string, fallback: IndicLanguageCode =
 
 // ── Instant Client-Side Transliteration Preview Dictionary ───────────────
 const CLIENT_TRANSLITERATION_MAP: Record<string, string> = {
+  // Marathi common words
+  "tula": "तुला",
+  "kai": "काय",
+  "kay": "काय",
+  "sangu": "सांगू",
+  "naka": "नका",
+  "nako": "नको",
+  "sanga": "सांगा",
+  "sang": "सांग",
+  "mala": "मला",
+  "tyala": "त्याला",
+  "tila": "तिला",
+  "amhi": "आम्ही",
+  "aamhi": "आम्ही",
+  "tumhi": "तुम्ही",
+  "apan": "आपण",
+  "aapan": "आपण",
+  "kasa": "कसा",
+  "kashi": "कशी",
+  "kase": "कसे",
+  "kuthe": "कुठे",
+  "kadhi": "कधी",
+  "kiti": "किती",
+  "kashala": "कशाला",
+  "ahe": "आहे",
+  "aahe": "आहे",
+  "ahet": "आहेत",
+  "aahet": "आहेत",
+  "nahi": "नाही",
+  "nahit": "नाहीत",
+  "zhale": "झाले",
+  "jhale": "झाले",
+  "chalalay": "चाललय",
+  "thik": "ठीक",
+  "kahi": "काही",
+  "kahich": "काहीच",
+  "bolu": "बोलू",
+  "bola": "बोला",
+  "bol": "बोल",
+  "mahiti": "माहिती",
+  "mahit": "माहित",
+
   // Hindi common words
   "mujhe": "मुझे",
   "kya": "क्या",
@@ -139,6 +180,29 @@ const CLIENT_TRANSLITERATION_MAP: Record<string, string> = {
   "grah": "ग्रह",
   "prakash": "प्रकाश",
   "sanshleshan": "संश्लेषण",
+  "aisa": "ऐसा",
+  "aise": "ऐसे",
+  "aisi": "ऐसी",
+  "abhi": "अभी",
+  "kabhi": "कभी",
+  "nahane": "नहाने",
+  "nahan": "नहाना",
+  "jana": "जाना",
+  "jaana": "जाना",
+  "aana": "आना",
+  "lag": "लग",
+  "raha": "रहा",
+  "rahe": "रहे",
+  "rahi": "रही",
+  "ki": "कि",
+  "toh": "तो",
+  "to": "तो",
+  "theek": "ठीक",
+  "thik": "ठीक",
+  "acha": "अच्छा",
+  "achha": "अच्छा",
+  "bahut": "बहुत",
+  "kuch": "कुछ",
   "batao": "बताओ",
   "namaste": "नमस्ते",
   "shukriya": "शुक्रिया",

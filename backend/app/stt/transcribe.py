@@ -67,13 +67,29 @@ async def transcribe_audio(
             result = response.json()
             
             transcript = result.get("transcript", "").strip()
-            detected_lang = result.get("language_code", language_code or "en")
+            
+            # If user explicitly passed a specific language, respect it 100%
+            is_explicit_selection = language_code and language_code not in ("auto", "unknown")
+            
+            if is_explicit_selection:
+                detected_lang = language_code
+            else:
+                # In Auto-Detect mode: map any misrecognized Dravidian greetings to standard English
+                dravidian_greetings = {"హలో", "ஹலோ", "ಹಲೋ", "ഹലോ"}
+                if transcript in dravidian_greetings:
+                    transcript = "Hello"
+                    detected_lang = "en-IN"
+                else:
+                    # Constrain Auto-Detect to the 4 fast core targets: gu-IN, hi-IN, mr-IN, en-IN
+                    detected_lang = detect_language(transcript, default="en-IN" if not is_indic_script(transcript) else "hi-IN")
+                    if detected_lang not in ("gu-IN", "hi-IN", "mr-IN", "en-IN"):
+                        detected_lang = "en-IN" if not is_indic_script(transcript) else "hi-IN"
 
             # Ensure native script for Indic queries
             if transcript and not is_indic_script(transcript):
-                target_lang = detected_lang if detected_lang not in ("unknown", "en", "en-IN") else None
-                transcript = await transliterate_indic_text(transcript, target_lang)
-                detected_lang = detect_language(transcript, default=detected_lang)
+                target_lang = detected_lang if detected_lang in ("gu-IN", "hi-IN", "mr-IN", "bn-IN", "ta-IN", "te-IN") else None
+                if target_lang:
+                    transcript = await transliterate_indic_text(transcript, target_lang)
             
             ms_elapsed = (time.perf_counter() - t0) * 1000
             logger.info(f"STT Success | ms={ms_elapsed:.0f} | lang={detected_lang} | transcript='{transcript[:40]}...'")
@@ -105,6 +121,7 @@ def _get_tts_client() -> httpx.AsyncClient:
 async def synthesize_speech(text: str, target_language_code: Optional[str] = None, speaker: str = "anushka") -> dict:
     """
     Calls Sarvam AI bulbul:v2 Text-to-Speech API with in-memory caching for instant audio delivery.
+    Supports all 11 Indic languages with accurate Unicode script mapping.
     """
     t0 = time.perf_counter()
     settings = get_settings()
@@ -113,33 +130,12 @@ async def synthesize_speech(text: str, target_language_code: Optional[str] = Non
         raise HTTPException(status_code=500, detail="Sarvam API key not configured")
 
     # Auto detect Indic language code from Unicode script ranges & lexical markers
-    if not target_language_code:
-        if any('\u0B80' <= char <= '\u0BFF' for char in text):
-            target_language_code = "ta-IN"  # Tamil
-        elif any('\u0C00' <= char <= '\u0C7F' for char in text):
-            target_language_code = "te-IN"  # Telugu
-        elif any('\u0980' <= char <= '\u09FF' for char in text):
-            target_language_code = "bn-IN"  # Bengali / Assamese
-        elif any('\u0C80' <= char <= '\u0CFF' for char in text):
-            target_language_code = "kn-IN"  # Kannada
-        elif any('\u0D00' <= char <= '\u0D7F' for char in text):
-            target_language_code = "ml-IN"  # Malayalam
-        elif any('\u0A00' <= char <= '\u0A7F' for char in text):
-            target_language_code = "pa-IN"  # Punjabi
-        elif any('\u0B00' <= char <= '\u0B7F' for char in text):
-            target_language_code = "od-IN"  # Odia
-        elif any('\u0A80' <= char <= '\u0AFF' for char in text):
-            target_language_code = "gu-IN"  # Gujarati
-        elif any('\u0900' <= char <= '\u097F' for char in text):
-            # Distinguish Marathi from Hindi by common morphological markers
-            marathi_markers = {"आहे", "आहेत", "किती", "झाले", "नाही", "म्हणजे", "करणारे", "सूर्यमालेत"}
-            words_in_text = set(text.split())
-            if words_in_text.intersection(marathi_markers):
-                target_language_code = "mr-IN"  # Marathi
-            else:
-                target_language_code = "hi-IN"  # Hindi
-        else:
-            target_language_code = "en-IN"  # English
+    if not target_language_code or target_language_code in ("auto", "unknown"):
+        target_language_code = detect_language(text, default="en-IN")
+
+    # Sarvam TTS uses 'od-IN' or 'or-IN'
+    if target_language_code == "or-IN":
+        target_language_code = "od-IN"
 
     cache_key = f"{target_language_code}:{speaker}:{text.strip()[:300]}"
     if cache_key in _TTS_CACHE:

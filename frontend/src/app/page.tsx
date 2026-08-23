@@ -223,14 +223,18 @@ function InlineResultCard({
       </div>
 
       {/* ─── Query Echo ─── */}
-      {query && (
-        <div style={{
-          fontSize: 13, color: T.textSec, fontStyle: "italic",
-          borderLeft: `2px solid ${T.brand}`, paddingLeft: 10,
-        }}>
-          "{query}"
-        </div>
-      )}
+      {(() => {
+        const queryToShow = result?.query || result?.transcript || query;
+        if (!queryToShow) return null;
+        return (
+          <div style={{
+            fontSize: 13, color: T.textSec, fontStyle: "italic",
+            borderLeft: `2px solid ${T.brand}`, paddingLeft: 10,
+          }}>
+            "{queryToShow}"
+          </div>
+        );
+      })()}
 
       {/* ─── Answer Text with Real-Time Audio Word-by-Word Highlight ─── */}
       <SpokenAnswerText answer={result.answer} isSpeaking={Boolean(isSpeaking)} speechProgress={speechProgress} />
@@ -432,7 +436,7 @@ export default function VoiceRagPage() {
     }
 
     setSubmittedQuery(q);
-    setInputVal(q);
+    setInputVal(""); // Clear input field so it's immediately ready for the next question
 
     voice.unlockAudio();
     voice.clearResult?.();
@@ -442,7 +446,6 @@ export default function VoiceRagPage() {
       const normalizedQuery = res.query || res.transcript;
       if (normalizedQuery && normalizedQuery !== q) {
         setSubmittedQuery(normalizedQuery);
-        setInputVal(normalizedQuery);
       }
       if (res.answer) {
         voice.speakAnswer(res.answer, langCode || (res.language as IndicLanguageCode) || selectedLang);
@@ -478,7 +481,7 @@ export default function VoiceRagPage() {
   // Sync live microphone transcript into the input bar in real-time (when locked to a specific language or native script)
   useEffect(() => {
     if (voice.liveTranscript) {
-      // If specific language is selected (e.g. Hindi, Gujarati), sync live
+      // If specific language is selected (e.g. Hindi, Gujarati, Marathi), sync live
       if (selectedLang !== "auto") {
         setInputVal(voice.liveTranscript);
       } else {
@@ -491,13 +494,13 @@ export default function VoiceRagPage() {
     }
   }, [voice.liveTranscript, selectedLang]);
 
-  // When voice query finishes with high-precision STT transcript, sync to state
+  // When voice query finishes with high-precision STT transcript, sync to result card and clear input bar
   useEffect(() => {
     if (voice.result) {
       const q = voice.result.transcript || voice.result.query || voice.liveTranscript;
       if (q) {
         setSubmittedQuery(q);
-        setInputVal(q);
+        setInputVal(""); // Reset input bar for next question
       }
     }
   }, [voice.result, voice.liveTranscript]);
@@ -680,6 +683,7 @@ export default function VoiceRagPage() {
                   { code: "gu-IN" as const, label: "🇮🇳 ગુજરાતી" },
                   { code: "hi-IN" as const, label: "🇮🇳 हिन्दी" },
                   { code: "en-IN" as const, label: "🇬🇧 English" },
+                  { code: "mr-IN" as const, label: "🇮🇳 मराठी" },
                 ].map((l) => {
                   const isActive = selectedLang === l.code;
                   return (
@@ -707,7 +711,7 @@ export default function VoiceRagPage() {
                 })}
               </div>
 
-              {/* Dropdown for other Indic languages */}
+              {/* Dropdown for specific language selection across all 11 Indic languages */}
               <select
                 value={selectedLang}
                 onChange={(e) => handleSelectLang(e.target.value as IndicLanguageCode)}
@@ -721,7 +725,7 @@ export default function VoiceRagPage() {
                   fontSize: 10.5,
                   outline: "none",
                   cursor: "pointer",
-                  maxWidth: 140,
+                  maxWidth: 135,
                 }}
               >
                 <option value="auto">🌐 Auto-Detect</option>
