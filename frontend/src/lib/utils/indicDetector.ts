@@ -198,7 +198,6 @@ const CLIENT_TRANSLITERATION_MAP: Record<string, string> = {
   "toh": "तो",
   "to": "तो",
   "theek": "ठीक",
-  "thik": "ठीक",
   "acha": "अच्छा",
   "achha": "अच्छा",
   "bahut": "बहुत",
