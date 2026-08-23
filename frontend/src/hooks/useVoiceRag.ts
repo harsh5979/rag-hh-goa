@@ -308,56 +308,13 @@ export function useVoiceRag(config: VoiceConfig = {}) {
       // Update analyser for waveform visualisation
       setAnalyser(vad.getAnalyser());
 
-      // ★ STEP 4: Optional browser SpeechRecognition for live text preview
-      //   Try on any browser that supports it — no device restriction
-      if (typeof window !== "undefined") {
-        const SpeechRec =
-          (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-        if (SpeechRec) {
-          try {
-            const recognition = new SpeechRec();
-            recognition.continuous = false;
-            recognition.interimResults = true;
-            recognition.maxAlternatives = 1;
-            recognition.lang =
-              currentLanguageRef.current && currentLanguageRef.current !== "auto"
-                ? currentLanguageRef.current
-                : "en-IN";
+      // NOTE: SpeechRecognition (webkitSpeechRecognition) is intentionally NOT started here.
+      // On Android Chrome, MediaRecorder holds an exclusive lock on the microphone hardware.
+      // Attempting to start SpeechRecognition while MediaRecorder is active causes:
+      //   "Chrome cannot record now as Chrome is recording" error toast shown to the user.
+      // Sarvam STT via the /chat/audio endpoint provides the full high-accuracy transcript.
 
-            recognition.onresult = (event: any) => {
-              let t = "";
-              for (let i = event.resultIndex; i < event.results.length; i++) {
-                t += event.results[i][0].transcript;
-              }
-              const full = t.trim();
-              if (full) {
-                setLiveTranscript(full);
-                transcriptRef.current = full;
-                onTranscript?.(full, false);
-              }
-            };
-            recognition.onerror = (e: any) => {
-              // audio-capture = mic already in use; silently ignore
-              if (e.error !== "no-speech" && e.error !== "aborted" && e.error !== "audio-capture") {
-                console.debug("[SpeechRecognition] note:", e.error);
-              }
-            };
-            recognition.onend = () => {
-              // Auto-stop if we got a transcript and haven't already stopped
-              if (transcriptRef.current?.trim() && !isStoppingRef.current) {
-                stopListening();
-              }
-            };
-            recognition.start();
-            speechRecognitionRef.current = recognition;
-          } catch (recErr) {
-            // Non-fatal: SpeechRecognition is optional preview only
-            console.debug("[SpeechRecognition] init skip:", recErr);
-          }
-        }
-      }
-
-      // ★ STEP 5: Set up WebSocket for real-time streaming (non-blocking)
+      // ★ STEP 4: Set up WebSocket for real-time streaming (non-blocking)
       const wsClient = new VoiceWebSocketClient({
         language:
           currentLanguageRef.current === "auto" ? "en-IN" : currentLanguageRef.current,
