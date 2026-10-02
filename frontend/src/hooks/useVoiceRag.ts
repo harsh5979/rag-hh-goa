@@ -35,7 +35,7 @@ function detectScriptLanguage(
 export function useVoiceRag(config: VoiceConfig = {}) {
   const {
     language: initialLanguage = "en-IN",
-    silenceThresholdMs = 650,
+    silenceThresholdMs = 480,
     energyThreshold = 18,
     autoSpeak = true,
     speaker = "anushka",
@@ -180,21 +180,32 @@ export function useVoiceRag(config: VoiceConfig = {}) {
     setSilenceCountdown(null);
     setSpeechDetected(false);
     setAudioLevel(0);
-    updateState("processing");
 
     const durationMs = Date.now() - startTimeRef.current;
     let finalResponse: PipelineResponse | null = null;
 
     try {
-      // 1. Stop VAD + recording
+      // 1. Check if user actually spoke
+      const hasSpoken = vadRef.current?.hasUserSpoken() ?? false;
+
+      // 2. Stop VAD + recording
       vadRef.current?.stop();
       const blob = await captureRef.current?.stop() ?? null;
 
-      // 2. Signal WebSocket end
+      // 3. Signal WebSocket end
       const currentTranscript = transcriptRef.current;
       wsClientRef.current?.sendEnd(currentTranscript);
 
-      // 3. Submit to STT+RAG via sttService
+      // Guard: If user never spoke or audio blob is empty, cleanly exit without calling backend
+      if (!hasSpoken && (!blob || blob.size < 500) && !currentTranscript.trim()) {
+        updateState("idle");
+        isStoppingRef.current = false;
+        return null;
+      }
+
+      updateState("processing");
+
+      // 4. Submit to STT+RAG via sttService
       const lang =
         currentLanguageRef.current === "auto" ? "unknown" : currentLanguageRef.current;
 
@@ -217,7 +228,7 @@ export function useVoiceRag(config: VoiceConfig = {}) {
         }
       } catch (sttErr) {
         if (sttErr instanceof STTError && sttErr.code === "BLOB_TOO_SMALL") {
-          // Nothing to submit — go idle without error
+          // Nothing to submit — go idle cleanly without error
           updateState("idle");
           isStoppingRef.current = false;
           return null;

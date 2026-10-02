@@ -18,6 +18,19 @@ SARVAM_STT_TRANSLATE_URL = "https://api.sarvam.ai/speech-to-text-translate"
 SARVAM_TTS_URL = "https://api.sarvam.ai/text-to-speech"
 
 
+# ── module-level connection pool ──────────────────────────────────────────────
+_STT_CLIENT: Optional[httpx.AsyncClient] = None
+
+def _get_stt_client() -> httpx.AsyncClient:
+    global _STT_CLIENT
+    if _STT_CLIENT is None or _STT_CLIENT.is_closed:
+        _STT_CLIENT = httpx.AsyncClient(
+            timeout=15.0,
+            limits=httpx.Limits(max_keepalive_connections=30, max_connections=100, keepalive_expiry=30.0),
+        )
+    return _STT_CLIENT
+
+
 async def transcribe_audio(
     audio_file: UploadFile,
     language_code: Optional[str] = None,
@@ -25,6 +38,7 @@ async def transcribe_audio(
 ) -> STTResponse:
     """
     Calls Sarvam AI STT API (saaras:v2.5) to convert Indic/English speech to accurate native text.
+    Uses persistent HTTP connection pool for sub-200ms latency.
     """
     t0 = time.perf_counter()
     settings = get_settings()
@@ -76,60 +90,60 @@ async def transcribe_audio(
     elif not translate_to_en:
         data["language_code"] = "unknown"
 
-    async with httpx.AsyncClient(timeout=15.0) as client:
-        try:
-            logger.debug(f"Calling Sarvam STT ({len(content)} bytes, lang={data.get('language_code')})")
-            
-            response = await client.post(
-                url,
-                headers=headers,
-                files=files,
-                data=data
-            )
-            response.raise_for_status()
-            result = response.json()
-            
-            transcript = result.get("transcript", "").strip()
-            
-            # If user explicitly passed a specific language, respect it 100%
-            is_explicit_selection = language_code and language_code not in ("auto", "unknown")
-            
-            if is_explicit_selection:
-                detected_lang = language_code
+    client = _get_stt_client()
+    try:
+        logger.debug(f"Calling Sarvam STT ({len(content)} bytes, lang={data.get('language_code')})")
+        
+        response = await client.post(
+            url,
+            headers=headers,
+            files=files,
+            data=data
+        )
+        response.raise_for_status()
+        result = response.json()
+        
+        transcript = result.get("transcript", "").strip()
+        
+        # If user explicitly passed a specific language, respect it 100%
+        is_explicit_selection = language_code and language_code not in ("auto", "unknown")
+        
+        if is_explicit_selection:
+            detected_lang = language_code
+        else:
+            # In Auto-Detect mode: map any misrecognized Dravidian greetings to standard English
+            dravidian_greetings = {"హలో", "ஹலோ", "ಹಲೋ", "ഹലോ"}
+            if transcript in dravidian_greetings:
+                transcript = "Hello"
+                detected_lang = "en-IN"
             else:
-                # In Auto-Detect mode: map any misrecognized Dravidian greetings to standard English
-                dravidian_greetings = {"హలో", "ஹலோ", "ಹಲೋ", "ഹലോ"}
-                if transcript in dravidian_greetings:
-                    transcript = "Hello"
-                    detected_lang = "en-IN"
-                else:
-                    # Constrain Auto-Detect to the 4 fast core targets: gu-IN, hi-IN, mr-IN, en-IN
-                    detected_lang = detect_language(transcript, default="en-IN" if not is_indic_script(transcript) else "hi-IN")
-                    if detected_lang not in ("gu-IN", "hi-IN", "mr-IN", "en-IN"):
-                        detected_lang = "en-IN" if not is_indic_script(transcript) else "hi-IN"
+                # Constrain Auto-Detect to the 4 fast core targets: gu-IN, hi-IN, mr-IN, en-IN
+                detected_lang = detect_language(transcript, default="en-IN" if not is_indic_script(transcript) else "hi-IN")
+                if detected_lang not in ("gu-IN", "hi-IN", "mr-IN", "en-IN"):
+                    detected_lang = "en-IN" if not is_indic_script(transcript) else "hi-IN"
 
-            # Ensure native script for Indic queries
-            if transcript and not is_indic_script(transcript):
-                target_lang = detected_lang if detected_lang in ("gu-IN", "hi-IN", "mr-IN", "bn-IN", "ta-IN", "te-IN") else None
-                if target_lang:
-                    transcript = await transliterate_indic_text(transcript, target_lang)
-            
-            ms_elapsed = (time.perf_counter() - t0) * 1000
-            logger.info(f"STT Success | ms={ms_elapsed:.0f} | lang={detected_lang} | transcript='{transcript[:40]}...'")
-            
-            return STTResponse(
-                transcript=transcript.strip(),
-                confidence=0.95,
-                language=detected_lang,
-                ms_elapsed=round(ms_elapsed, 2)
-            )
-            
-        except httpx.HTTPStatusError as e:
-            logger.error(f"Sarvam STT API Error: {e.response.status_code} - {e.response.text}")
-            raise HTTPException(status_code=502, detail="Speech-to-Text provider error")
-        except Exception as e:
-            logger.exception("STT Request failed")
-            raise HTTPException(status_code=500, detail="Failed to process audio")
+        # Ensure native script for Indic queries
+        if transcript and not is_indic_script(transcript):
+            target_lang = detected_lang if detected_lang in ("gu-IN", "hi-IN", "mr-IN", "bn-IN", "ta-IN", "te-IN") else None
+            if target_lang:
+                transcript = await transliterate_indic_text(transcript, target_lang)
+        
+        ms_elapsed = (time.perf_counter() - t0) * 1000
+        logger.info(f"STT Success | ms={ms_elapsed:.0f} | lang={detected_lang} | transcript='{transcript[:40]}...'")
+        
+        return STTResponse(
+            transcript=transcript.strip(),
+            confidence=0.95,
+            language=detected_lang,
+            ms_elapsed=round(ms_elapsed, 2)
+        )
+        
+    except httpx.HTTPStatusError as e:
+        logger.error(f"Sarvam STT API Error: {e.response.status_code} - {e.response.text}")
+        raise HTTPException(status_code=502, detail="Speech-to-Text provider error")
+    except Exception as e:
+        logger.exception("STT Request failed")
+        raise HTTPException(status_code=500, detail="Failed to process audio")
 
 
 # Re-export synthesize_speech from dedicated tts module for backwards compatibility

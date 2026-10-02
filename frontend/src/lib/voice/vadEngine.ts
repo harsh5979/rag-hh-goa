@@ -5,12 +5,12 @@ export interface VADEngineOptions {
   energyThreshold?: number;
   /**
    * How long (ms) the signal must stay below silence threshold after speech was
-   * detected before onSilenceTimeout fires. Default: 650 (Gemini-grade snappy cutoff).
+   * detected before onSilenceTimeout fires. Default: 480 (Snappy sub-500ms conversational cutoff).
    */
   silenceThresholdMs?: number;
   /**
    * Minimum total recording time (ms) before silence timeout can fire.
-   * Prevents instant cut-offs when the user just tapped. Default: 400.
+   * Prevents instant cut-offs when the user just tapped. Default: 350.
    */
   minRecordingMs?: number;
   /**
@@ -21,7 +21,7 @@ export interface VADEngineOptions {
   /**
    * How long (ms) to wait for the user to start speaking before auto-cancelling the mic.
    * Prevents microphone staying active indefinitely if the user tapped mic and walked away.
-   * Default: 4000 (4 seconds).
+   * Default: 3500 (3.5 seconds).
    */
   noSpeechTimeoutMs?: number;
   /** VAD polling interval in ms. Default: 40 (25 ticks/sec for sub-50ms responsiveness). */
@@ -66,13 +66,18 @@ export class VADEngine {
   constructor(opts: VADEngineOptions = {}) {
     this.opts = opts;
     this.fftSize = opts.fftSize ?? 128;
-    this.silenceThresholdMs = opts.silenceThresholdMs ?? 650;
-    this.minRecordingMs = opts.minRecordingMs ?? 400;
+    this.silenceThresholdMs = opts.silenceThresholdMs ?? 480;
+    this.minRecordingMs = opts.minRecordingMs ?? 350;
     this.maxRecordingMs = opts.maxRecordingMs ?? 12000;
-    this.noSpeechTimeoutMs = opts.noSpeechTimeoutMs ?? 4000;
+    this.noSpeechTimeoutMs = opts.noSpeechTimeoutMs ?? 3500;
     this.pollIntervalMs = opts.pollIntervalMs ?? 40;
     this.effectiveSpeechThreshold = opts.energyThreshold ?? 18;
     this.effectiveSilenceThreshold = 12;
+  }
+
+  /** Returns true if speech was detected during the current recording session. */
+  public hasUserSpoken(): boolean {
+    return this.hasSpoken;
   }
 
   /**
@@ -85,33 +90,39 @@ export class VADEngine {
   public async start(stream: MediaStream): Promise<void> {
     if (this.running) return;
 
-    // Create AudioContext here, as early as possible in the async chain
-    const AC =
-      window.AudioContext ||
-      (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-    this.audioCtx = new AC();
+    try {
+      // Create AudioContext here, as early as possible in the async chain
+      const AC =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      this.audioCtx = new AC();
 
-    // Resume if browser suspended it (some browsers do this even immediately)
-    if (this.audioCtx.state === "suspended") {
-      await this.audioCtx.resume().catch(() => {});
+      // Resume if browser suspended it (some browsers do this even immediately)
+      if (this.audioCtx.state === "suspended") {
+        await this.audioCtx.resume().catch(() => {});
+      }
+
+      const source = this.audioCtx.createMediaStreamSource(stream);
+      const analyser = this.audioCtx.createAnalyser();
+      analyser.fftSize = this.fftSize;
+      analyser.smoothingTimeConstant = 0.35;
+      source.connect(analyser);
+
+      this.analyser = analyser;
+      this.dataArray = new Uint8Array(analyser.frequencyBinCount) as Uint8Array<ArrayBuffer>;
+      this.hasSpoken = false;
+      this.lastSpeechTs = 0;
+      this.startTs = Date.now();
+      this.calibrationSamples = [];
+      this.isCalibrated = false;
+      this.running = true;
+
+      this._startLoop();
+    } catch (err) {
+      console.error("[VADEngine] start error:", err);
+      this.stop();
+      throw err;
     }
-
-    const source = this.audioCtx.createMediaStreamSource(stream);
-    const analyser = this.audioCtx.createAnalyser();
-    analyser.fftSize = this.fftSize;
-    analyser.smoothingTimeConstant = 0.35;
-    source.connect(analyser);
-
-    this.analyser = analyser;
-    this.dataArray = new Uint8Array(analyser.frequencyBinCount) as Uint8Array<ArrayBuffer>;
-    this.hasSpoken = false;
-    this.lastSpeechTs = 0;
-    this.startTs = Date.now();
-    this.calibrationSamples = [];
-    this.isCalibrated = false;
-    this.running = true;
-
-    this._startLoop();
   }
 
   /** Returns the AnalyserNode for waveform visualisation (may be null before start). */
