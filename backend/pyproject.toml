@@ -34,8 +34,10 @@ dependencies = [
     # Groq LLM
     "groq>=0.9",
 
-    # Sarvam STT
+    # Sarvam STT & Fallback TTS
     "httpx>=0.27",
+    "edge-tts>=6.1.12",
+
 
     # Retry / reliability
     "tenacity>=8.3",

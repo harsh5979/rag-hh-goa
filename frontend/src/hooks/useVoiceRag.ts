@@ -353,7 +353,8 @@ export function useVoiceRag(config: VoiceConfig = {}) {
       // ★ STEP 4: Set up WebSocket for real-time streaming (non-blocking)
       const wsClient = new VoiceWebSocketClient({
         language:
-          currentLanguageRef.current === "auto" ? "en-IN" : currentLanguageRef.current,
+          currentLanguageRef.current === "auto" ? "auto" : currentLanguageRef.current,
+
         onTranscript: (t, isFinal) => {
           setLiveTranscript(t);
           transcriptRef.current = t;

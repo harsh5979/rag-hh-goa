@@ -19,15 +19,24 @@ class Settings(BaseSettings):
     sarvam_api_key: str = ""
     groq_api_key:   str = ""
 
+    # ── Speech Providers ────────────────────────────────────
+    # STT: "auto" (Sarvam -> Groq Whisper fallback) | "sarvam" | "groq"
+    stt_provider: str = "auto"
+    # TTS: "auto" (Sarvam -> Edge-TTS fallback) | "sarvam" | "edge"
+    tts_provider: str = "auto"
+    groq_whisper_model: str = "whisper-large-v3-turbo"
+
+
     # ── Generation ──────────────────────────────────────────
     generation_mode: str = "auto"   # "extractive" | "groq" | "auto"
 
     # Comma-separated fallback model chain
     groq_fallback_models: str = (
-        "openai/gpt-oss-120b,openai/gpt-oss-20b,qwen/qwen3.6-27b,groq/compound-mini"
+        "qwen/qwen3.8-27b,openai/gpt-oss-20b,openai/gpt-oss-120b"
     )
     # Comma-separated per-model timeout budgets (ms), same length as models
-    groq_timeouts_ms: str = "6000,8000"
+    groq_timeouts_ms: str = "4000,5000,6000"
+
 
     groq_max_tokens:          int   = 120   # short focused answers
     groq_retries_per_model:   int   = 1
